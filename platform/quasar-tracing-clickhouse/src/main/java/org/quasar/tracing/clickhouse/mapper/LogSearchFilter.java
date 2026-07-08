@@ -25,6 +25,9 @@ public class LogSearchFilter {
     /** Match this trace id; null/blank = any. */
     private String traceId;
 
+    /** Match this span id; null/blank = any. */
+    private String spanId;
+
     /** Match this deployment environment; null/blank = any. */
     private String environment;
 

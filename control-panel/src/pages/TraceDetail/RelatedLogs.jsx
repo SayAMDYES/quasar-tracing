@@ -5,7 +5,8 @@
  *
  * @author Quasar
  */
-import { Table, Space, Typography, Button } from 'antd';
+import { useEffect, useMemo, useState } from 'react';
+import { Alert, Button, Segmented, Space, Table, Typography } from 'antd';
 import { ExportOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -15,9 +16,30 @@ import { formatTime } from '@/utils/format';
 
 const { Text } = Typography;
 
-export default function RelatedLogs({ traceId, logs }) {
+export default function RelatedLogs({ traceId, logs, selectedSpan }) {
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const [scope, setScope] = useState('trace');
+  const selectedSpanId = selectedSpan?.spanId;
+  const hasSpanIds = useMemo(() => (logs || []).some((log) => log.spanId), [logs]);
+
+  useEffect(() => {
+    setScope(selectedSpanId ? 'span' : 'trace');
+  }, [selectedSpanId]);
+
+  const scopeOptions = [
+    { label: t('traceDetail.rlScopeTrace'), value: 'trace' },
+    {
+      label: t('traceDetail.rlScopeSpan'),
+      value: 'span',
+      disabled: !selectedSpanId,
+    },
+  ];
+  const canFilterBySpan = scope === 'span' && selectedSpanId && hasSpanIds;
+  const visibleLogs = useMemo(
+    () => (canFilterBySpan ? (logs || []).filter((log) => log.spanId === selectedSpanId) : logs || []),
+    [canFilterBySpan, logs, selectedSpanId],
+  );
 
   const columns = [
     {
@@ -50,25 +72,49 @@ export default function RelatedLogs({ traceId, logs }) {
   return (
     <>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
-        <Text type="secondary" style={{ fontSize: 13 }}>
-          {t('traceDetail.relatedCorrelated', { n: logs?.length || 0 })}{' '}
-          <span className="mono">trace_id</span>
-        </Text>
-        <Button
-          type="link"
-          size="small"
-          icon={<ExportOutlined />}
-          onClick={() => navigate(`/logs?traceId=${traceId}`)}
-        >
-          {t('traceDetail.openInLogSearch')}
-        </Button>
+        <Space size={10} wrap>
+          <Text type="secondary" style={{ fontSize: 13 }}>
+            {t('traceDetail.relatedCorrelated', { n: visibleLogs.length })}{' '}
+            <span className="mono">{canFilterBySpan ? 'span_id' : 'trace_id'}</span>
+          </Text>
+          <Segmented size="small" options={scopeOptions} value={scope} onChange={setScope} />
+        </Space>
+        <Space size={8} wrap>
+          {selectedSpanId && (
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              {t('traceDetail.rlCurrentSpan')} <span className="mono">{selectedSpanId.slice(0, 12)}</span>
+            </Text>
+          )}
+          <Button
+            type="link"
+            size="small"
+            icon={<ExportOutlined />}
+            onClick={() => {
+              const query = new URLSearchParams({ traceId });
+              if (scope === 'span' && selectedSpanId && hasSpanIds) {
+                query.set('spanId', selectedSpanId);
+              }
+              navigate(`/logs?${query.toString()}`);
+            }}
+          >
+            {t('traceDetail.openInLogSearch')}
+          </Button>
+        </Space>
       </div>
+      {scope === 'span' && selectedSpanId && !hasSpanIds && (
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 10 }}
+          message={t('traceDetail.rlSpanFilterUnavailable')}
+        />
+      )}
       <Table
-        rowKey={(r, i) => `${r.spanId}-${i}`}
+        rowKey={(r) => r.id || `${r.timestamp}-${r.traceId}-${r.spanId}-${r.body}`}
         className="data-table"
         size="small"
         columns={columns}
-        dataSource={logs || []}
+        dataSource={visibleLogs}
         pagination={false}
         scroll={{ x: 900, y: 420 }}
       />

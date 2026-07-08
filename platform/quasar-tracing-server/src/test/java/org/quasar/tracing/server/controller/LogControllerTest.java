@@ -47,10 +47,12 @@ class LogControllerTest {
         Map<String, Object> bucket = new LinkedHashMap<>();
         bucket.put("time", 0L);
         bucket.put("ERROR", 1L);
-        when(logService.search(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
+        when(logService.search(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
             .thenReturn(new LogSearchResultDTO(page, List.of(bucket)));
 
         mvc.perform(get("/api/logs")
+                .param("traceId", "t")
+                .param("spanId", "s")
                 .param("severities", "ERROR")
                 .param("environment", "production")
                 .param("namespace", "quasar")
@@ -63,7 +65,7 @@ class LogControllerTest {
             .andExpect(jsonPath("$.data.page.records[0].serviceInstanceId").value("pod-uid-1"))
             .andExpect(jsonPath("$.data.page.records[0].k8sPodName").value("mysql-0"))
             .andExpect(jsonPath("$.data.histogram[0].ERROR").value(1));
-        verify(logService).search(any(), any(), eq("production"), eq("quasar"), any(), any(), any(),
+        verify(logService).search(any(), eq("t"), eq("s"), eq("production"), eq("quasar"), any(), any(), any(),
             eq("pod-uid-1"), any(), any(), any(), any(), any(), any());
     }
 }

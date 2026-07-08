@@ -5,21 +5,30 @@
  * @author Quasar
  */
 import { useEffect, useMemo, useState } from 'react';
-import { Table, Select, Input, InputNumber, Space, Typography } from 'antd';
+import { Card, Col, Input, InputNumber, Row, Select, Space, Table, Typography } from 'antd';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import PageHeader from '@/components/PageHeader';
 import Toolbar from '@/components/Toolbar';
+import EChart from '@/components/EChart';
 import DurationBar from '@/components/DurationBar';
 import CopyableId from '@/components/CopyableId';
 import { ServiceBadge, SpanStatusTag, EnvTag } from '@/components/tags';
 import { useApp } from '@/context/AppContext';
 import useFetch from '@/hooks/useFetch';
 import { searchTraces, fetchFilters } from '@/api';
+import { buildTraceDistributionCharts } from '@/charts/options';
 import { formatTime, formatInt, fromNow } from '@/utils/format';
 import { status as statusColors } from '@/theme/tokens';
 
 const { Text } = Typography;
+
+function roundDurationFilter(value) {
+  if (value == null) return undefined;
+  if (value < 10) return Number(value.toFixed(2));
+  if (value < 100) return Number(value.toFixed(1));
+  return Math.ceil(value);
+}
 
 function MetadataCell({ value }) {
   return value ? <span className="mono table-cell-strong" title={value}>{value}</span> : <span className="muted">—</span>;
@@ -28,7 +37,7 @@ function MetadataCell({ value }) {
 export default function TraceSearchPage() {
   const { range, autoRefreshRevision } = useApp();
   const navigate = useNavigate();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [searchParams] = useSearchParams();
   const urlFilters = useMemo(
     () => ({
@@ -41,6 +50,7 @@ export default function TraceSearchPage() {
       serviceInstanceId: searchParams.get('serviceInstanceId') || undefined,
       status: searchParams.get('status') || 'all',
       minDurationMs: searchParams.get('minDurationMs') ? Number(searchParams.get('minDurationMs')) : undefined,
+      maxDurationMs: searchParams.get('maxDurationMs') ? Number(searchParams.get('maxDurationMs')) : undefined,
       q: searchParams.get('q') || '',
     }),
     [searchParams],
@@ -64,10 +74,25 @@ export default function TraceSearchPage() {
   );
 
   const apply = () => setApplied(form);
+  const applyDurationRange = (bucket) => {
+    if (!bucket) return;
+    const next = {
+      ...form,
+      minDurationMs: roundDurationFilter(bucket.start),
+      maxDurationMs: roundDurationFilter(bucket.end),
+    };
+    setForm(next);
+    setApplied(next);
+  };
   const maxNs = useMemo(
     () => (data?.items?.length ? Math.max(...data.items.map((it) => it.durationNs)) : 1),
     [data],
   );
+  const distributionCharts = useMemo(() => {
+    if (!data?.items?.length) return null;
+    return buildTraceDistributionCharts(data.items);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, i18n.language]);
 
   const columns = [
     {
@@ -317,6 +342,20 @@ export default function TraceSearchPage() {
               <Input value="ms" readOnly style={{ width: 38, color: 'var(--text-muted)' }} />
             </Space.Compact>
           </div>
+          <div className="query-filter-field is-compact">
+            <Text className="query-filter-label">{t('traceSearch.max')}</Text>
+            <Space.Compact style={{ width: '100%' }}>
+              <InputNumber
+                placeholder="ms"
+                min={0}
+                value={form.maxDurationMs}
+                onChange={(v) => setForm((f) => ({ ...f, maxDurationMs: v }))}
+                onPressEnter={apply}
+                style={{ width: 'calc(100% - 38px)' }}
+              />
+              <Input value="ms" readOnly style={{ width: 38, color: 'var(--text-muted)' }} />
+            </Space.Compact>
+          </div>
         </div>
       </Toolbar>
 
@@ -326,6 +365,38 @@ export default function TraceSearchPage() {
           {data && data.total > data.items.length ? ` · ${t('common.showingFirst', { n: data.items.length })}` : ''}
         </Text>
       </div>
+
+      {distributionCharts && (
+        <Card
+          size="small"
+          title={t('traceSearch.distributionTitle')}
+          style={{ marginBottom: 16 }}
+          extra={<Text type="secondary" style={{ fontSize: 12 }}>{t('traceSearch.distributionHint')}</Text>}
+        >
+          <Row gutter={[16, 12]}>
+            <Col xs={24} xl={16}>
+              <EChart
+                option={distributionCharts.scatter}
+                height={220}
+                onEvents={{
+                  click: (params) => {
+                    if (params.data?.traceId) navigate(`/traces/${params.data.traceId}`);
+                  },
+                }}
+              />
+            </Col>
+            <Col xs={24} xl={8}>
+              <EChart
+                option={distributionCharts.histogram}
+                height={220}
+                onEvents={{
+                  click: (params) => applyDurationRange(params.data),
+                }}
+              />
+            </Col>
+          </Row>
+        </Card>
+      )}
 
       <Table
         rowKey="traceId"

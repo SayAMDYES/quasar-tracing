@@ -33,7 +33,7 @@ public class LogService {
     private final LogMapper logMapper;
     private final QueryProperties query;
 
-    public LogSearchResultDTO search(String service, String traceId,
+    public LogSearchResultDTO search(String service, String traceId, String spanId,
             String environment, String namespace, String k8sNamespace, String k8sPodName, String k8sNodeName, String serviceInstanceId,
             List<String> severities, String q,
             Long from, Long to, Integer limit, Integer offset) {
@@ -43,7 +43,7 @@ public class LogService {
         Integer effectiveOffset = offset == null ? 0 : Math.max(0, offset);
         Integer stepSec = TimeWindowUtil.stepSeconds(fromMs, toMs);
 
-        LogSearchFilter filter = new LogSearchFilter(service, traceId,
+        LogSearchFilter filter = new LogSearchFilter(service, traceId, spanId,
             environment, namespace, k8sNamespace, k8sPodName, k8sNodeName, serviceInstanceId, severities, q,
             fromMs, toMs, effectiveLimit, effectiveOffset, stepSec);
 

@@ -5,7 +5,7 @@
  *
  * @author Quasar
  */
-import { Drawer, Descriptions, Divider, Typography, Space } from 'antd';
+import { Drawer, Descriptions, Divider, Typography, Space, Tag } from 'antd';
 import { useTranslation } from 'react-i18next';
 import CopyableId from './CopyableId';
 import AttributeTable from './AttributeTable';
@@ -14,8 +14,118 @@ import { formatDuration, formatTimestamp } from '@/utils/format';
 
 const { Title } = Typography;
 
+const DIAGNOSTIC_GROUPS = [
+  {
+    key: 'status',
+    color: 'red',
+    keys: [
+      'span.status_code',
+      'span.status_message',
+      'status.code',
+      'status.message',
+      'error',
+      'error.type',
+      'exception.type',
+      'exception.message',
+    ],
+    prefixes: ['exception.'],
+  },
+  {
+    key: 'http',
+    color: 'blue',
+    keys: ['url.full', 'url.path', 'url.query', 'http.route', 'http.method', 'http.status_code'],
+    prefixes: ['http.', 'url.'],
+  },
+  {
+    key: 'db',
+    color: 'purple',
+    keys: ['db.system', 'db.name', 'db.operation', 'db.statement', 'db.query.text'],
+    prefixes: ['db.'],
+  },
+  {
+    key: 'rpc',
+    color: 'geekblue',
+    keys: ['rpc.system', 'rpc.service', 'rpc.method', 'rpc.grpc.status_code'],
+    prefixes: ['rpc.'],
+  },
+  {
+    key: 'messaging',
+    color: 'cyan',
+    keys: ['messaging.system', 'messaging.destination.name', 'messaging.operation.name'],
+    prefixes: ['messaging.'],
+  },
+  {
+    key: 'otel',
+    color: 'green',
+    keys: [
+      'service.name',
+      'service.namespace',
+      'service.instance.id',
+      'service.version',
+      'deployment.environment.name',
+      'telemetry.sdk.language',
+      'telemetry.sdk.name',
+    ],
+    prefixes: ['service.', 'deployment.', 'telemetry.sdk.'],
+  },
+  {
+    key: 'runtime',
+    color: 'gold',
+    keys: [
+      'k8s.namespace.name',
+      'k8s.pod.name',
+      'k8s.node.name',
+      'container.id',
+      'container.name',
+      'container.image.name',
+      'container.image.tag',
+    ],
+    prefixes: ['k8s.', 'container.'],
+  },
+];
+
+function addValue(target, key, value) {
+  if (value != null && value !== '') {
+    target[key] = value;
+  }
+}
+
+function collectDiagnosticGroups(span) {
+  if (!span) return [];
+
+  const attributes = {
+    ...(span.resourceAttributes || {}),
+    ...(span.spanAttributes || {}),
+  };
+
+  addValue(attributes, 'span.name', span.name);
+  addValue(attributes, 'span.kind', span.kind);
+  addValue(attributes, 'span.status_code', span.statusCode);
+  addValue(attributes, 'span.status_message', span.statusMessage);
+  addValue(attributes, 'service.name', span.service);
+
+  span.events?.forEach((event) => {
+    if (event?.name?.toLowerCase().includes('exception')) {
+      Object.entries(event.attributes || {}).forEach(([key, value]) => addValue(attributes, key, value));
+    }
+  });
+
+  return DIAGNOSTIC_GROUPS.map((group) => {
+    const matched = {};
+    group.keys.forEach((key) => addValue(matched, key, attributes[key]));
+    Object.entries(attributes).forEach(([key, value]) => {
+      if (matched[key] != null) return;
+      if (group.prefixes.some((prefix) => key.startsWith(prefix))) {
+        addValue(matched, key, value);
+      }
+    });
+    return { ...group, data: matched };
+  }).filter((group) => Object.keys(group.data).length > 0);
+}
+
 export default function SpanDetailDrawer({ span, traceStart, open, onClose }) {
   const { t } = useTranslation();
+  const diagnosticGroups = collectDiagnosticGroups(span);
 
   const items = span
     ? [
@@ -78,6 +188,24 @@ export default function SpanDetailDrawer({ span, traceStart, open, onClose }) {
           </Space>
 
           <Descriptions column={1} size="small" items={items} bordered />
+
+          {diagnosticGroups.length > 0 && (
+            <>
+              <Divider orientation="left" plain style={{ marginTop: 22 }}>
+                {t('span.diagnosticAttributes')}
+              </Divider>
+              <Space direction="vertical" size={12} style={{ width: '100%' }}>
+                {diagnosticGroups.map((group) => (
+                  <div key={group.key}>
+                    <Tag color={group.color} style={{ marginBottom: 8 }}>
+                      {t(`span.diagnosticGroups.${group.key}`)}
+                    </Tag>
+                    <AttributeTable data={group.data} />
+                  </div>
+                ))}
+              </Space>
+            </>
+          )}
 
           <Divider orientation="left" plain style={{ marginTop: 22 }}>
             {t('span.spanAttributes')}

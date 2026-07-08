@@ -30,6 +30,9 @@
         <if test="traceId != null and traceId != ''">
             AND TraceId = #{traceId}
         </if>
+        <if test="spanId != null and spanId != ''">
+            AND SpanId = #{spanId}
+        </if>
         <if test="environment != null and environment != ''">
             AND ResourceAttributes['deployment.environment.name'] = #{environment}
         </if>

@@ -36,7 +36,7 @@ class LogServiceTest {
         when(logMapper.histogram(any())).thenReturn(List.of(slice(0L, "INFO", 2L), slice(60_000L, "ERROR", 1L)));
 
         // 2-minute window → 60s buckets → 3 continuous buckets: 0, 60000, 120000
-        LogSearchResultDTO result = service.search("mysql", "t", "production", "quasar", "quasar-ns",
+        LogSearchResultDTO result = service.search("mysql", "t", "s", "production", "quasar", "quasar-ns",
             "mysql-0", "node-1", "pod-uid-1",
             List.of(), null, 0L, 120_000L, null, null);
 
@@ -50,6 +50,8 @@ class LogServiceTest {
         ArgumentCaptor<LogSearchFilter> captor = ArgumentCaptor.forClass(LogSearchFilter.class);
         verify(logMapper).search(captor.capture());
         LogSearchFilter filter = captor.getValue();
+        assertThat(filter.getTraceId()).isEqualTo("t");
+        assertThat(filter.getSpanId()).isEqualTo("s");
         assertThat(filter.getEnvironment()).isEqualTo("production");
         assertThat(filter.getNamespace()).isEqualTo("quasar");
         assertThat(filter.getK8sNamespace()).isEqualTo("quasar-ns");

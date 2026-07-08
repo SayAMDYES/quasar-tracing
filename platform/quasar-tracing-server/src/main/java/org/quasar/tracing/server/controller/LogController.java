@@ -30,6 +30,7 @@ public class LogController {
     public QTResponse<LogSearchResultDTO> search(
             @RequestParam(required = false) String service,
             @RequestParam(required = false) String traceId,
+            @RequestParam(required = false) String spanId,
             @RequestParam(required = false) String environment,
             @RequestParam(required = false) String namespace,
             @RequestParam(required = false) String k8sNamespace,
@@ -43,7 +44,7 @@ public class LogController {
             @RequestParam(required = false) Integer limit,
             @RequestParam(required = false) Integer offset) {
         return QTResponse.ok(
-            logService.search(service, traceId, environment, namespace, k8sNamespace, k8sPodName, k8sNodeName,
+            logService.search(service, traceId, spanId, environment, namespace, k8sNamespace, k8sPodName, k8sNodeName,
                 serviceInstanceId, parseCsv(severities), q, from, to, limit, offset));
     }
 

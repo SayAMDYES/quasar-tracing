@@ -80,14 +80,14 @@ export default function TopBar() {
   };
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%' }}>
+    <div className="topbar">
       <Input.Search
         allowClear
         placeholder={t('topbar.searchPlaceholder')}
         onSearch={onSearch}
-        style={{ maxWidth: 380 }}
+        className="topbar-search"
       />
-      <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div className="topbar-actions">
         <TimeRangePicker value={rangeKey} range={range} onChange={setRangeKey} onCustomChange={setCustomRange} />
         <Dropdown
           trigger={['click']}

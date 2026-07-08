@@ -35,6 +35,7 @@ export default function LogSearchPage() {
   const urlFilters = useMemo(
     () => ({
       traceId: searchParams.get('traceId') || undefined,
+      spanId: searchParams.get('spanId') || undefined,
       service: searchParams.get('service') || undefined,
       environment: searchParams.get('environment') || undefined,
       namespace: searchParams.get('namespace') || undefined,
@@ -46,6 +47,7 @@ export default function LogSearchPage() {
     [searchParams],
   );
   const traceId = urlFilters.traceId;
+  const spanId = urlFilters.spanId;
 
   const [form, setForm] = useState({
     service: urlFilters.service,
@@ -80,11 +82,12 @@ export default function LogSearchPage() {
       searchLogs({
         ...applied,
         traceId,
+        spanId,
         from: range.from,
         to: range.to,
         limit: 300,
       }),
-    [applied, traceId, range.from, range.to],
+    [applied, traceId, spanId, range.from, range.to],
     { backgroundKey: autoRefreshRevision },
   );
 
@@ -142,6 +145,12 @@ export default function LogSearchPage() {
     {
       title: t('logs.colTrace'),
       dataIndex: 'traceId',
+      width: 132,
+      render: (id) => (id ? <CopyableId value={id} short head={8} /> : <span className="muted">—</span>),
+    },
+    {
+      title: t('logs.colSpan'),
+      dataIndex: 'spanId',
       width: 132,
       render: (id) => (id ? <CopyableId value={id} short head={8} /> : <span className="muted">—</span>),
     },
@@ -274,9 +283,27 @@ export default function LogSearchPage() {
             <Tag
               className="query-filter-chip"
               closable
-              onClose={() => setSearchParams({})}
+              onClose={() => {
+                const next = new URLSearchParams(searchParams);
+                next.delete('traceId');
+                next.delete('spanId');
+                setSearchParams(next);
+              }}
             >
               trace_id: {traceId.slice(0, 12)}…
+            </Tag>
+          )}
+          {spanId && (
+            <Tag
+              className="query-filter-chip"
+              closable
+              onClose={() => {
+                const next = new URLSearchParams(searchParams);
+                next.delete('spanId');
+                setSearchParams(next);
+              }}
+            >
+              span_id: {spanId.slice(0, 12)}…
             </Tag>
           )}
         </div>

@@ -131,7 +131,7 @@ export default function TraceDetailPage() {
                         />
                       </Space>
                     ),
-                    children: <RelatedLogs traceId={traceId} logs={logs} />,
+                    children: <RelatedLogs traceId={traceId} logs={logs} selectedSpan={selected} />,
                   },
                 ]}
               />

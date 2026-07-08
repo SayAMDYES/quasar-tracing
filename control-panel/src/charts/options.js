@@ -78,6 +78,145 @@ const orangeArea = {
   ],
 };
 
+function durationMs(ns) {
+  return ns == null ? 0 : ns / 1e6;
+}
+
+function formatDurationMs(ms) {
+  if (ms < 1) return `${(ms * 1000).toFixed(1)}µs`;
+  if (ms < 1000) return `${ms.toFixed(ms < 10 ? 2 : ms < 100 ? 1 : 0)}ms`;
+  return `${(ms / 1000).toFixed(2)}s`;
+}
+
+function tracePointColor(trace) {
+  return trace.errorCount > 0 || trace.status === 'error' ? status.error : status.ok;
+}
+
+export function buildTraceDistributionCharts(traces) {
+  const durations = traces.map((trace) => durationMs(trace.durationNs));
+  const maxDuration = Math.max(1, ...durations);
+  const minDuration = Math.min(...durations, 0);
+  const binCount = Math.min(12, Math.max(4, Math.ceil(Math.sqrt(Math.max(1, traces.length)))));
+  const binSize = Math.max(1, (maxDuration - minDuration) / binCount);
+  const bins = Array.from({ length: binCount }, (_, index) => {
+    const start = minDuration + index * binSize;
+    const end = index === binCount - 1 ? maxDuration : start + binSize;
+    return { start, end, count: 0, errors: 0 };
+  });
+
+  traces.forEach((trace) => {
+    const ms = durationMs(trace.durationNs);
+    const index = Math.min(binCount - 1, Math.floor((ms - minDuration) / binSize));
+    bins[index].count += 1;
+    if (trace.errorCount > 0 || trace.status === 'error') bins[index].errors += 1;
+  });
+
+  const scatter = {
+    grid: grid({ top: 14, bottom: 6, right: 24 }),
+    tooltip: tooltipBox({
+      formatter: (p) => {
+        const trace = p.data;
+        return [
+          `<b>${trace.rootService || '-'}</b> · ${trace.rootName || '-'}`,
+          `${i18n.t('traceSearch.colTraceId')}: <span style="font-family:${MONO}">${trace.traceId}</span>`,
+          `${i18n.t('traceSearch.colStarted')}: ${dayjs(trace.value[0]).format('YYYY-MM-DD HH:mm:ss.SSS')}`,
+          `${i18n.t('traceSearch.colDuration')}: <b>${formatDurationMs(trace.value[1])}</b>`,
+          `${i18n.t('traceSearch.colSpans')}: ${trace.spanCount || 0} · ${i18n.t('traceSearch.colErrors')}: ${trace.errorCount || 0}`,
+        ].join('<br/>');
+      },
+    }),
+    xAxis: timeAxis(60 * 1000),
+    yAxis: valueAxis('ms', {
+      min: 0,
+      axisLabel: { color: AXIS_COLOR, fontFamily: MONO, fontSize: 11, formatter: (v) => formatDurationMs(v) },
+    }),
+    series: [
+      {
+        name: i18n.t('traceSearch.distributionScatter'),
+        type: 'scatter',
+        animationDuration: 700,
+        animationDelay: stagger(8, 360),
+        animationDurationUpdate: 400,
+        animationDelayUpdate: 0,
+        animationEasing: 'cubicOut',
+        animationEasingUpdate: 'cubicInOut',
+        data: traces.map((trace) => {
+          const ms = durationMs(trace.durationNs);
+          const hasError = trace.errorCount > 0 || trace.status === 'error';
+          return {
+            traceId: trace.traceId,
+            rootService: trace.rootService,
+            rootName: trace.rootName,
+            spanCount: trace.spanCount,
+            errorCount: trace.errorCount,
+            value: [trace.startTime, ms],
+            symbol: hasError ? 'diamond' : 'circle',
+            symbolSize: 7 + 8 * Math.sqrt(ms / maxDuration),
+            itemStyle: {
+              color: tracePointColor(trace),
+              opacity: hasError ? 0.9 : 0.72,
+              borderColor: '#FFFFFF',
+              borderWidth: 1,
+            },
+          };
+        }),
+      },
+    ],
+  };
+
+  const histogram = {
+    grid: grid({ left: 8, top: 14, bottom: 6 }),
+    tooltip: tooltipBox({
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
+      formatter: (params) => {
+        const bucket = params[0]?.data;
+        if (!bucket) return '';
+        return `${formatDurationMs(bucket.start)} - ${formatDurationMs(bucket.end)}<br/>${i18n.t('traceSearch.countTraces', { n: bucket.count })}<br/>${i18n.t('traceSearch.colErrors')}: ${bucket.errors}`;
+      },
+    }),
+    xAxis: {
+      type: 'category',
+      data: bins.map((bucket) => `${formatDurationMs(bucket.start)}-${formatDurationMs(bucket.end)}`),
+      axisLine: { lineStyle: { color: SPLIT_COLOR } },
+      axisTick: { show: false },
+      axisLabel: { color: AXIS_COLOR, fontFamily: MONO, fontSize: 10, interval: 0, rotate: 28 },
+    },
+    yAxis: valueAxis('', { minInterval: 1 }),
+    series: [
+      {
+        name: i18n.t('traceSearch.distributionHistogram'),
+        type: 'bar',
+        animationDuration: 700,
+        animationDelay: stagger(35, 360),
+        animationDurationUpdate: 400,
+        animationDelayUpdate: 0,
+        animationEasing: 'cubicOut',
+        animationEasingUpdate: 'cubicInOut',
+        barMaxWidth: 26,
+        cursor: 'pointer',
+        itemStyle: {
+          color: {
+            type: 'linear',
+            x: 0,
+            y: 0,
+            x2: 0,
+            y2: 1,
+            colorStops: [
+              { offset: 0, color: brand.primary },
+              { offset: 1, color: '#FDBA74' },
+            ],
+          },
+          borderRadius: [4, 4, 0, 0],
+        },
+        data: bins.map((bucket) => ({ ...bucket, value: bucket.count })),
+      },
+    ],
+  };
+
+  return { scatter, histogram };
+}
+
 export function buildThroughputChart(series, step) {
   return {
     grid: grid(),

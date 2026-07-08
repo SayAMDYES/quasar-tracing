@@ -5,7 +5,7 @@
  * @author Quasar
  */
 import { useState } from 'react';
-import { Layout } from 'antd';
+import { Grid, Layout } from 'antd';
 import { Link, Outlet } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import SideNav from './SideNav';
@@ -13,6 +13,7 @@ import TopBar from './TopBar';
 import { APP_VERSION } from '@/config/version';
 
 const { Sider, Header, Content, Footer } = Layout;
+const { useBreakpoint } = Grid;
 
 function Brand({ collapsed }) {
   const { t } = useTranslation();
@@ -61,6 +62,9 @@ function Brand({ collapsed }) {
 
 export default function AppLayout() {
   const [collapsed, setCollapsed] = useState(false);
+  const screens = useBreakpoint();
+  const isNarrow = screens.xs && !screens.md;
+  const effectiveCollapsed = isNarrow || collapsed;
 
   return (
     <Layout style={{ height: '100vh' }}>
@@ -69,14 +73,14 @@ export default function AppLayout() {
         width={232}
         collapsedWidth={64}
         collapsible
-        collapsed={collapsed}
+        collapsed={effectiveCollapsed}
         onCollapse={setCollapsed}
         style={{ borderRight: '1px solid var(--border)' }}
       >
-        <Brand collapsed={collapsed} />
+        <Brand collapsed={effectiveCollapsed} />
         <SideNav />
       </Sider>
-      <Layout>
+      <Layout style={{ minWidth: 0 }}>
         <Header
           style={{
             position: 'sticky',
@@ -89,7 +93,7 @@ export default function AppLayout() {
         >
           <TopBar />
         </Header>
-        <Content style={{ overflow: 'auto' }}>
+        <Content style={{ overflow: 'auto', minWidth: 0 }}>
           <div className="app-content">
             <Outlet />
           </div>

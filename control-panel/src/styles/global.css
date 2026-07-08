@@ -156,6 +156,29 @@ body {
   max-width: 1920px;
   margin: 0 auto;
   padding: 22px clamp(24px, 2.4vw, 40px) 20px;
+  min-width: 0;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+}
+
+.topbar-search {
+  max-width: 380px;
+  min-width: 180px;
+  flex: 1 1 240px;
+}
+
+.topbar-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
 }
 
 .auto-refresh-button.ant-btn {
@@ -299,6 +322,42 @@ body {
 }
 
 @media (max-width: 900px) {
+  .app-content {
+    padding: 20px 14px 18px;
+  }
+
+  .topbar {
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 2px;
+  }
+
+  .topbar-search {
+    min-width: 48px;
+    max-width: 48px;
+    flex: 0 0 48px;
+  }
+
+  .topbar-actions {
+    margin-left: 0;
+    flex: 0 0 auto;
+  }
+
+  .data-table,
+  .data-table .ant-spin-nested-loading,
+  .data-table .ant-spin-container,
+  .data-table .ant-table-wrapper,
+  .data-table .ant-table-container {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .data-table .ant-table-content,
+  .data-table .ant-table-body {
+    max-width: 100%;
+    overflow-x: auto !important;
+  }
+
   .query-filter-group,
   .query-filter-field,
   .query-filter-field.is-wide,
