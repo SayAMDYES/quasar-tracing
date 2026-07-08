@@ -1,0 +1,5 @@
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:clickhouse://127.0.0.1:8123/quasar_tracing?connect_timeout=10000&socket_timeout=60000}
+    username: ${SPRING_DATASOURCE_USERNAME:admin}
+    password: ${SPRING_DATASOURCE_PASSWORD:quasar-dev-password}

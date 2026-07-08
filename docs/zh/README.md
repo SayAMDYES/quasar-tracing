@@ -6,6 +6,22 @@ API，并在 React 控制面板中展示。
 
 > **中文文档** → [docs/zh/README.md](docs/zh/README.md)
 
+## 文档索引
+
+- **本地启动平台**：从 [本地运行](#本地运行) 开始。
+- **接入业务应用**：统一走 [Agent 模式](#agent-模式)。
+- **运行示例应用**：见 [example/springboot/README.md](../../example/springboot/README.md)。
+- **部署到 Kubernetes**：统一使用 [deploy/helm/quasar-tracing](../../deploy/helm/quasar-tracing) Helm Chart。
+
+## 实现方针
+
+Quasar Tracing 当前统一采用 **OpenTelemetry Java Agent 模式**接入业务应用。业务应用
+只需要在 JVM 启动时挂载 agent，并把 OTLP signals 发送到 collector；不要把 Quasar
+Tracing 平台模块或遥测流水线代码加入业务应用依赖。
+
+源码级 OpenTelemetry API 只作为可选补充：当自动埋点无法表达业务含义时，可以补充
+domain span、属性、事件或 Micrometer 业务指标。它们不替代 agent，也不作为主要接入路径。
+
 ---
 
 ## 架构
@@ -183,10 +199,14 @@ docker compose logs otel-exporter --tail=20
 
 ```bash
 cd platform
-mvn -pl quasar-tracing-server -am spring-boot:run
+Copy-Item quasar-tracing-server/src/main/resources/application-dev.example.yml `
+  quasar-tracing-server/src/main/resources/application-dev.yml
+mvn -pl quasar-tracing-server -am spring-boot:run -Dspring-boot.run.profiles=dev
 ```
 
-API 监听 `http://localhost:8080`，并使用下方凭据读取 ClickHouse。
+`application-dev.yml` 是本地忽略的 profile 文件。具体环境的数据源配置放在这里，或通过
+`SPRING_DATASOURCE_URL`、`SPRING_DATASOURCE_USERNAME`、`SPRING_DATASOURCE_PASSWORD`
+覆盖。API 监听 `http://localhost:8080`。
 
 ### 7. 启动控制面板
 
@@ -202,9 +222,10 @@ npm run dev --prefix control-panel
 
 ---
 
-## 接入 Spring Boot 应用
+## Agent 模式
 
-在服务启动命令中添加 OTel Java Agent：
+在服务启动命令中挂载 OpenTelemetry Java Agent。这样 traces、日志关联、JVM/应用指标
+都保持在业务代码改造路径之外：
 
 ```bash
 java \
@@ -230,6 +251,16 @@ export OTEL_METRICS_EXPORTER=otlp
 ```
 
 下载 agent：https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases
+
+约定如下：
+
+- 必须设置 `OTEL_SERVICE_NAME`；它是 traces、logs、metrics、服务地图和过滤条件里的主服务标识。
+- 只写入有确定值的资源属性，例如 `service.namespace`、`service.version`、
+  `deployment.environment.name`。
+- 容器或 Kubernetes 维度由运行环境、Helm values 或 collector enrichment 注入；
+  不要写死 fallback 值。
+- agent 保持为应用构建外部依赖；不要提交 agent jar，也不要为了导出遥测把平台模块引入业务应用。
+- 源码级 OpenTelemetry 注解或 Micrometer 指标只能作为 agent 模式上的业务语义补充。
 
 ---
 

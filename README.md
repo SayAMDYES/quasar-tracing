@@ -6,6 +6,25 @@ Spring Boot backend, and renders them in the React control panel.
 
 > **中文文档** → [docs/zh/README.md](docs/zh/README.md)
 
+## Documentation Index
+
+- **Run the platform locally**: start from [Run Locally](#run-locally).
+- **Instrument an application**: use [Agent Mode](#agent-mode) as the standard path.
+- **Run the sample app**: see [example/springboot/README.md](example/springboot/README.md).
+- **Deploy to Kubernetes**: use the Helm chart at [deploy/helm/quasar-tracing](deploy/helm/quasar-tracing).
+
+## Implementation Policy
+
+Quasar Tracing standardizes on **OpenTelemetry Java Agent mode** for application
+instrumentation. Business applications should attach the agent at JVM startup and send OTLP
+signals to the collector. Do not add Quasar Tracing platform modules or telemetry pipeline
+code to the business application's dependency graph.
+
+Source-level OpenTelemetry APIs are optional supplements only: use them for domain spans,
+attributes, events, or Micrometer business metrics when auto-instrumentation cannot infer the
+meaning. They do not replace the agent and should not be treated as the primary integration
+path.
+
 ---
 
 ## Architecture
@@ -184,11 +203,14 @@ In a new terminal, from the repository root:
 
 ```bash
 cd platform
-mvn -pl quasar-tracing-server -am spring-boot:run
+Copy-Item quasar-tracing-server/src/main/resources/application-dev.example.yml `
+  quasar-tracing-server/src/main/resources/application-dev.yml
+mvn -pl quasar-tracing-server -am spring-boot:run -Dspring-boot.run.profiles=dev
 ```
 
-The API listens on `http://localhost:8080` and reads ClickHouse with the credentials
-shown below.
+`application-dev.yml` is a local ignored profile. Keep environment-specific datasource
+values there, or override them with `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`,
+and `SPRING_DATASOURCE_PASSWORD`. The API listens on `http://localhost:8080`.
 
 ### 7. Start the control panel
 
@@ -204,9 +226,11 @@ Open `http://localhost:5173`. The Vite dev server proxies `/api/*` to
 
 ---
 
-## Instrumenting a Spring Boot Application
+## Agent Mode
 
-Add the OTel Java Agent to your service's startup command:
+Attach the OpenTelemetry Java Agent to the service startup command. This keeps tracing,
+log correlation, and JVM/application metrics outside the business application's code-change
+path:
 
 ```bash
 java \
@@ -232,6 +256,19 @@ export OTEL_METRICS_EXPORTER=otlp
 ```
 
 Download the agent: https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases
+
+Keep these conventions:
+
+- Set `OTEL_SERVICE_NAME`; it is the primary service identity in traces, logs, metrics,
+  service maps, and filters.
+- Set only resource attributes with known values, such as `service.namespace`,
+  `service.version`, and `deployment.environment.name`.
+- Inject container or Kubernetes dimensions from the runtime environment, Helm values, or
+  collector enrichment; avoid hardcoded fallback values.
+- Keep the agent external to the application build. Do not commit the agent jar or add
+  platform modules to business applications just to export telemetry.
+- Add source-level OpenTelemetry annotations or Micrometer meters only as optional domain
+  enrichment on top of the agent mode.
 
 ---
 
