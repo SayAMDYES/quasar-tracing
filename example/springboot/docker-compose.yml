@@ -1,0 +1,28 @@
+# Runs the sample alongside the local stack started from deploy/simple.
+#
+#   1. Start the middleware:   cd ../../deploy/simple && docker compose up -d
+#   2. Create Kafka topics (see the root README, step 2) if you have not already.
+#   3. Build and run the app:  docker compose up --build
+#
+# The app joins deploy/simple's network (external) so it can reach the collector by name.
+# If your compose project name is not "simple", find the network with `docker network ls`
+# and update the name below.
+services:
+  springboot-otel-sample:
+    build:
+      context: .
+    image: springboot-otel-sample:local
+    ports:
+      - "8090:8090"
+    environment:
+      OTEL_SERVICE_NAME: springboot-otel-sample
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+      OTEL_RESOURCE_ATTRIBUTES: service.namespace=quasar-tracing,service.version=1.0.0,deployment.environment.name=local
+      OTEL_TRACES_SAMPLER: parentbased_always_on
+      OTEL_INSTRUMENTATION_MICROMETER_ENABLED: "true"
+
+networks:
+  default:
+    name: simple_default
+    external: true

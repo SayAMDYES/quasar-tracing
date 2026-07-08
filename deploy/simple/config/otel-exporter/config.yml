@@ -1,0 +1,73 @@
+receivers:
+  kafka:
+    brokers:
+      - kafka:9092
+    group_id: otel-exporter-consumer
+    traces:
+      topics:
+        - otel-traces
+      encoding: otlp_proto
+    logs:
+      topics:
+        - otel-logs
+      encoding: otlp_json
+    metrics:
+      topics:
+        - otel-metrics
+      encoding: otlp_proto
+
+processors:
+  filter/drop_http_noise:
+    error_mode: ignore
+    traces:
+      span:
+        - 'IsMatch(name, "^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|TRACE|CONNECT|HTTP)$")'
+        - 'IsMatch(name, "^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|TRACE|CONNECT|HTTP) /$")'
+        - 'IsMatch(name, "^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|TRACE|CONNECT|HTTP) /api/?$")'
+        - 'IsMatch(name, "^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|TRACE|CONNECT|HTTP) /error$")'
+        - 'IsMatch(name, "^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|TRACE|CONNECT|HTTP) .*[\\*].*$")'
+        - 'IsMatch(name, "^(HEAD|OPTIONS|HTTP)( |$).*")'
+  batch:
+    timeout: 5s
+    send_batch_size: 5000
+
+exporters:
+  clickhouse/traces:
+    endpoint: tcp://clickhouse:9000?dial_timeout=10s
+    username: admin
+    password: "quasar-dev-password"
+    database: quasar_tracing
+    traces_table_name: spans
+    create_schema: true
+    ttl: 72h
+  clickhouse/logs:
+    endpoint: tcp://clickhouse:9000?dial_timeout=10s
+    username: admin
+    password: "quasar-dev-password"
+    database: quasar_tracing
+    logs_table_name: logs
+    create_schema: true
+    ttl: 72h
+  clickhouse/metrics:
+    endpoint: tcp://clickhouse:9000?dial_timeout=10s
+    username: admin
+    password: "quasar-dev-password"
+    database: quasar_tracing
+    metrics_table_name: otel_metrics
+    create_schema: true
+    ttl: 72h
+
+service:
+  pipelines:
+    traces:
+      receivers: [kafka]
+      processors: [filter/drop_http_noise, batch]
+      exporters: [clickhouse/traces]
+    logs:
+      receivers: [kafka]
+      processors: [batch]
+      exporters: [clickhouse/logs]
+    metrics:
+      receivers: [kafka]
+      processors: [batch]
+      exporters: [clickhouse/metrics]

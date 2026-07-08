@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.quasar.tracing.clickhouse.mapper.LogMapper">
+
+    <resultMap id="logResultMap" type="org.quasar.tracing.clickhouse.entity.LogEntity" autoMapping="true">
+        <result column="resourceAttributes" property="resourceAttributes"
+                typeHandler="org.quasar.tracing.clickhouse.handler.StringMapTypeHandler"/>
+    </resultMap>
+
+    <select id="selectByTraceId" resultMap="logResultMap">
+        SELECT
+            toUnixTimestamp64Milli(Timestamp) AS timestamp,
+            TraceId      AS traceId,
+            SpanId       AS spanId,
+            SeverityText AS severity,
+            ServiceName  AS service,
+            Body         AS body,
+            ResourceAttributes AS resourceAttributes
+        FROM quasar_tracing.logs
+        WHERE TraceId = #{traceId}
+        ORDER BY Timestamp
+    </select>
+
+    <sql id="logWhere">
+        Timestamp BETWEEN fromUnixTimestamp64Milli(#{from}) AND fromUnixTimestamp64Milli(#{to})
+        <if test="service != null and service != ''">
+            AND ServiceName = #{service}
+        </if>
+        <if test="traceId != null and traceId != ''">
+            AND TraceId = #{traceId}
+        </if>
+        <if test="environment != null and environment != ''">
+            AND ResourceAttributes['deployment.environment.name'] = #{environment}
+        </if>
+        <if test="namespace != null and namespace != ''">
+            AND (
+                ResourceAttributes['service.namespace'] = #{namespace}
+                OR if(indexOf(mapKeys(ResourceAttributes), 'k8s.namespace.name') = 0, '',
+                    arrayElement(mapValues(ResourceAttributes), indexOf(mapKeys(ResourceAttributes), 'k8s.namespace.name'))) = #{namespace}
+            )
+        </if>
+        <if test="k8sNamespace != null and k8sNamespace != ''">
+            AND if(indexOf(mapKeys(ResourceAttributes), 'k8s.namespace.name') = 0, '',
+                arrayElement(mapValues(ResourceAttributes), indexOf(mapKeys(ResourceAttributes), 'k8s.namespace.name'))) = #{k8sNamespace}
+        </if>
+        <if test="k8sPodName != null and k8sPodName != ''">
+            AND if(indexOf(mapKeys(ResourceAttributes), 'k8s.pod.name') = 0, '',
+                arrayElement(mapValues(ResourceAttributes), indexOf(mapKeys(ResourceAttributes), 'k8s.pod.name'))) = #{k8sPodName}
+        </if>
+        <if test="k8sNodeName != null and k8sNodeName != ''">
+            AND if(indexOf(mapKeys(ResourceAttributes), 'k8s.node.name') = 0, '',
+                arrayElement(mapValues(ResourceAttributes), indexOf(mapKeys(ResourceAttributes), 'k8s.node.name'))) = #{k8sNodeName}
+        </if>
+        <if test="serviceInstanceId != null and serviceInstanceId != ''">
+            AND if(indexOf(mapKeys(ResourceAttributes), 'service.instance.id') = 0, '',
+                arrayElement(mapValues(ResourceAttributes), indexOf(mapKeys(ResourceAttributes), 'service.instance.id'))) = #{serviceInstanceId}
+        </if>
+        <if test="severities != null and !severities.isEmpty()">
+            AND SeverityText IN
+            <foreach item="sev" collection="severities" open="(" separator="," close=")">#{sev}</foreach>
+        </if>
+        <if test="q != null and q != ''">
+            AND (positionCaseInsensitive(Body, #{q}) > 0 OR position(TraceId, #{q}) > 0)
+        </if>
+    </sql>
+
+    <select id="search" resultMap="logResultMap">
+        SELECT
+            toUnixTimestamp64Milli(Timestamp) AS timestamp,
+            TraceId      AS traceId,
+            SpanId       AS spanId,
+            SeverityText AS severity,
+            ServiceName  AS service,
+            Body         AS body,
+            ResourceAttributes AS resourceAttributes
+        FROM quasar_tracing.logs
+        <where>
+            <include refid="logWhere"/>
+        </where>
+        ORDER BY Timestamp DESC
+        <!-- ${} because the JDBC driver's SQL parser rejects ? inside LIMIT/OFFSET;
+             both values are service-clamped integers, never raw user input. -->
+        LIMIT ${limit} OFFSET ${offset}
+    </select>
+
+    <select id="countSearch" resultType="java.lang.Long">
+        SELECT count()
+        FROM quasar_tracing.logs
+        <where>
+            <include refid="logWhere"/>
+        </where>
+    </select>
+
+    <select id="histogram" resultType="org.quasar.tracing.clickhouse.entity.LogHistogramSliceEntity">
+        SELECT
+            toUInt64(toUnixTimestamp(toStartOfInterval(Timestamp, toIntervalSecond(#{stepSec})))) * 1000 AS time,
+            SeverityText AS severity,
+            toUInt64(count()) AS count
+        FROM quasar_tracing.logs
+        <where>
+            <include refid="logWhere"/>
+        </where>
+        GROUP BY time, severity
+        ORDER BY time
+    </select>
+
+    <select id="recentErrors" resultMap="logResultMap">
+        SELECT
+            toUnixTimestamp64Milli(Timestamp) AS timestamp,
+            TraceId      AS traceId,
+            SpanId       AS spanId,
+            SeverityText AS severity,
+            ServiceName  AS service,
+            Body         AS body,
+            ResourceAttributes AS resourceAttributes
+        FROM quasar_tracing.logs
+        WHERE Timestamp BETWEEN fromUnixTimestamp64Milli(#{from}) AND fromUnixTimestamp64Milli(#{to})
+          AND SeverityText IN ('ERROR', 'FATAL')
+        ORDER BY Timestamp DESC
+        LIMIT ${limit}
+    </select>
+
+</mapper>

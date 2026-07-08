@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: quasar-tracing-otel-env
+  namespace: {{ .Values.instrumentation.targetNamespace }}
+  labels:
+    {{- include "quasar-tracing.labels" . | nindent 4 }}
+    app.kubernetes.io/component: instrumentation-config
+data:
+  OTEL_EXPORTER_OTLP_ENDPOINT: {{ .Values.instrumentation.grpcEndpoint | quote }}
+  OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
+  OTEL_TRACES_EXPORTER: "otlp"
+  OTEL_LOGS_EXPORTER: "otlp"
+  OTEL_METRICS_EXPORTER: "otlp"
+  {{- $resourceAttributes := include "quasar-tracing.instrumentationResourceAttributes" . | trim }}
+  {{- if $resourceAttributes }}
+  OTEL_RESOURCE_ATTRIBUTES: {{ $resourceAttributes | quote }}
+  {{- end }}
+  OTEL_INSTRUMENTATION_LOGBACK_APPENDER_ENABLED: "true"
+  OTEL_INSTRUMENTATION_LOGBACK_MDC_ENABLED: "true"

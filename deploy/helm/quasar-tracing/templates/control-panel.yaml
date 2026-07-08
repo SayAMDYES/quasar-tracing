@@ -1,0 +1,93 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: control-panel
+  namespace: {{ include "quasar-tracing.namespace" . }}
+  labels:
+    {{- include "quasar-tracing.componentLabels" (dict "root" . "component" "control-panel") | nindent 4 }}
+spec:
+  type: {{ .Values.controlPanel.service.type }}
+  selector:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: control-panel
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+      {{- if eq .Values.controlPanel.service.type "NodePort" }}
+      nodePort: {{ .Values.controlPanel.service.nodePort }}
+      {{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: control-panel
+  namespace: {{ include "quasar-tracing.namespace" . }}
+  labels:
+    {{- include "quasar-tracing.componentLabels" (dict "root" . "component" "control-panel") | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: control-panel
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmaps.yaml") . | sha256sum }}
+      labels:
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: control-panel
+    spec:
+      containers:
+        - name: control-panel
+          image: {{ .Values.controlPanel.image.repository }}:{{ .Values.controlPanel.image.tag }}
+          imagePullPolicy: {{ default .Values.global.imagePullPolicy .Values.controlPanel.imagePullPolicy }}
+          ports:
+            - name: http
+              containerPort: 80
+          volumeMounts:
+            - name: nginx-config
+              mountPath: /etc/nginx/conf.d/default.conf
+              subPath: nginx.conf
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.controlPanel.resources | nindent 12 }}
+      volumes:
+        - name: nginx-config
+          configMap:
+            name: control-panel-nginx
+{{- if .Values.controlPanel.ingress.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: control-panel
+  namespace: {{ include "quasar-tracing.namespace" . }}
+  labels:
+    {{- include "quasar-tracing.componentLabels" (dict "root" . "component" "control-panel") | nindent 4 }}
+spec:
+  ingressClassName: {{ .Values.controlPanel.ingress.className }}
+  rules:
+    - host: {{ .Values.controlPanel.ingress.host }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: control-panel
+                port:
+                  number: 80
+{{- end }}

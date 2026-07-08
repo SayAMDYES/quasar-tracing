@@ -1,0 +1,5 @@
+spring:
+  datasource:
+    url: ${CLICKHOUSE_TEST_URL:jdbc:clickhouse://127.0.0.1:18123/quasar_tracing?connect_timeout=10000&socket_timeout=60000}
+    username: ${CLICKHOUSE_TEST_USER:admin}
+    password: ${CLICKHOUSE_TEST_PASSWORD:quasar-dev-password}

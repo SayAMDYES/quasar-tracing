@@ -1,0 +1,41 @@
+{{- if and .Values.otelCollector.k8sAttributes.enabled .Values.otelCollector.serviceAccount.create }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Values.otelCollector.serviceAccount.name }}
+  namespace: {{ include "quasar-tracing.namespace" . }}
+  labels:
+    {{- include "quasar-tracing.componentLabels" (dict "root" . "component" "otel-collector") | nindent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "quasar-tracing.name" . }}-otel-collector-k8sattributes
+  labels:
+    {{- include "quasar-tracing.componentLabels" (dict "root" . "component" "otel-collector") | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "namespaces", "nodes"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["replicasets", "deployments", "daemonsets", "statefulsets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["batch"]
+    resources: ["jobs", "cronjobs"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "quasar-tracing.name" . }}-otel-collector-k8sattributes
+  labels:
+    {{- include "quasar-tracing.componentLabels" (dict "root" . "component" "otel-collector") | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "quasar-tracing.name" . }}-otel-collector-k8sattributes
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.otelCollector.serviceAccount.name }}
+    namespace: {{ include "quasar-tracing.namespace" . }}
+{{- end }}

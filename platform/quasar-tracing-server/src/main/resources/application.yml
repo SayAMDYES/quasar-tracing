@@ -1,0 +1,45 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: quasar-tracing-server
+  datasource:
+    driver-class-name: com.clickhouse.jdbc.ClickHouseDriver
+    hikari:
+      pool-name: clickhouse-pool
+      maximum-pool-size: 8
+      minimum-idle: 1
+      connection-timeout: 10000
+      # The ClickHouse driver can't set a per-connection network timeout, so validate
+      # connections explicitly: keep them alive, recycle them, and test before handing
+      # one to a query — a dead/stale connection is replaced instead of hanging.
+      keepalive-time: 30000
+      max-lifetime: 600000
+      validation-timeout: 5000
+      connection-test-query: SELECT 1
+
+mybatis:
+  mapper-locations: classpath*:mapper/**/*.xml
+  type-aliases-package: org.quasar.tracing.clickhouse.entity
+  configuration:
+    map-underscore-to-camel-case: true
+
+quasar:
+  tracing:
+    query:
+      default-trace-limit: 50
+      default-log-limit: 100
+      max-limit: 1000
+    service-types:
+      redis: datastore
+      mysql: datastore
+      mongodb: datastore
+      postgresql: datastore
+      elasticsearch: datastore
+      clickhouse: datastore
+      kafka: mq
+      rabbitmq: mq
+      rocketmq: mq
+      nginx: external
+      payment-gateway: external

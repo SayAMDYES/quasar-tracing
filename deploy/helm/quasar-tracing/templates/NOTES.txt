@@ -1,0 +1,32 @@
+Quasar Tracing has been installed in namespace {{ include "quasar-tracing.namespace" . }}.
+
+Control panel:
+  - Ingress: http://{{ .Values.controlPanel.ingress.host }}
+  - NodePort: http://<node-ip>:{{ .Values.controlPanel.service.nodePort }}
+
+Collector endpoints for Java applications in {{ .Values.instrumentation.targetNamespace }}:
+  - OTLP gRPC: {{ .Values.instrumentation.grpcEndpoint }}
+  - OTLP HTTP: {{ .Values.instrumentation.httpEndpoint }}
+
+Recommended Java Agent environment variables for workloads in {{ .Values.instrumentation.targetNamespace }}:
+  OTEL_EXPORTER_OTLP_ENDPOINT={{ .Values.instrumentation.grpcEndpoint }}
+  OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+  OTEL_TRACES_EXPORTER=otlp
+  OTEL_LOGS_EXPORTER=otlp
+  OTEL_METRICS_EXPORTER=otlp
+  {{- $resourceAttributes := include "quasar-tracing.instrumentationResourceAttributes" . | trim }}
+  {{- if $resourceAttributes }}
+  OTEL_RESOURCE_ATTRIBUTES={{ $resourceAttributes }}
+  {{- end }}
+  OTEL_INSTRUMENTATION_LOGBACK_APPENDER_ENABLED=true
+  OTEL_INSTRUMENTATION_LOGBACK_MDC_ENABLED=true
+
+Kubernetes metadata enrichment:
+  - The collector enriches OTLP telemetry with pod / namespace / node / workload attributes.
+  - service.instance.id is inserted from k8s.pod.uid when the application did not set one.
+  - Keep application-provided service.name plus service.namespace / service.version / deployment.environment.name in the workload env.
+  - Keep k8s.namespace.name owned by collector enrichment; do not mirror it from service.namespace.
+
+For external Java apps on the LAN:
+  - OTLP gRPC: {{ .Values.instrumentation.nodeGrpcEndpoint }}
+  - OTLP HTTP: {{ .Values.instrumentation.nodeHttpEndpoint }}

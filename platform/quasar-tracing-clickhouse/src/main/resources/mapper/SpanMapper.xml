@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.quasar.tracing.clickhouse.mapper.SpanMapper">
+
+    <resultMap id="spanResultMap" type="org.quasar.tracing.clickhouse.entity.SpanEntity" autoMapping="true">
+        <result column="resourceAttributes" property="resourceAttributes"
+                typeHandler="org.quasar.tracing.clickhouse.handler.StringMapTypeHandler"/>
+        <result column="spanAttributes" property="spanAttributes"
+                typeHandler="org.quasar.tracing.clickhouse.handler.StringMapTypeHandler"/>
+        <result column="eventNames" property="eventNames"
+                typeHandler="org.quasar.tracing.clickhouse.handler.StringListTypeHandler"/>
+        <result column="eventTimestamps" property="eventTimestamps"
+                typeHandler="org.quasar.tracing.clickhouse.handler.LongListTypeHandler"/>
+        <result column="eventAttributes" property="eventAttributes"
+                typeHandler="org.quasar.tracing.clickhouse.handler.MapListTypeHandler"/>
+    </resultMap>
+
+    <select id="selectByTraceId" resultMap="spanResultMap">
+        SELECT
+            TraceId       AS traceId,
+            SpanId        AS spanId,
+            ParentSpanId  AS parentSpanId,
+            ServiceName   AS serviceName,
+            SpanName      AS spanName,
+            SpanKind      AS spanKind,
+            toUnixTimestamp64Milli(Timestamp)                  AS timestamp,
+            Duration      AS duration,
+            StatusCode    AS statusCode,
+            StatusMessage AS statusMessage,
+            ResourceAttributes AS resourceAttributes,
+            SpanAttributes     AS spanAttributes,
+            Events.Name      AS eventNames,
+            arrayMap(x -> toUnixTimestamp64Milli(x), Events.Timestamp) AS eventTimestamps,
+            arrayMap(m -> toJSONString(m), Events.Attributes) AS eventAttributes
+        FROM quasar_tracing.spans
+        WHERE TraceId = #{traceId}
+        ORDER BY Timestamp
+    </select>
+
+</mapper>

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+    <!--
+      The OpenTelemetry Java Agent injects trace_id / span_id / trace_flags into the SLF4J
+      MDC (logback-mdc instrumentation, on by default). Referencing them in the console
+      pattern makes every local log line correlate to the trace that produced it.
+
+      The agent also bridges these log events to OTLP (logback-appender instrumentation,
+      on by default), so the same lines land in the ClickHouse `logs` table with TraceId
+      populated — no appender wiring needed here.
+    -->
+    <property name="CONSOLE_LOG_PATTERN"
+              value="%d{yyyy-MM-dd HH:mm:ss.SSS} %highlight(%-5level) [%thread] %cyan(%logger{36}) [trace_id=%X{trace_id:-} span_id=%X{span_id:-}] - %msg%n"/>
+
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${CONSOLE_LOG_PATTERN}</pattern>
+        </encoder>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+</configuration>

@@ -1,0 +1,25 @@
+spring:
+  application:
+    # Used as a fallback service.name. The agent's OTEL_SERVICE_NAME takes precedence.
+    name: springboot-otel-sample
+
+server:
+  port: 8090
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    org.quasar.tracing.example: DEBUG
+
+sample:
+  # The service calls itself to produce a downstream span; localhost works on the host
+  # and inside the container alike.
+  self-base-url: http://localhost:8090

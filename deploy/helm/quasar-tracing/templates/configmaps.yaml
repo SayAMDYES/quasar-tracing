@@ -1,0 +1,226 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-config
+  namespace: {{ include "quasar-tracing.namespace" . }}
+  labels:
+    {{- include "quasar-tracing.labels" . | nindent 4 }}
+data:
+  otel-collector-config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+
+    processors:
+      filter/drop_http_noise:
+        error_mode: ignore
+        traces:
+          span:
+            - 'IsMatch(name, "^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|TRACE|CONNECT|HTTP)$")'
+            - 'IsMatch(name, "^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|TRACE|CONNECT|HTTP) /$")'
+            - 'IsMatch(name, "^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|TRACE|CONNECT|HTTP) /api/?$")'
+            - 'IsMatch(name, "^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|TRACE|CONNECT|HTTP) /error$")'
+            - 'IsMatch(name, "^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|TRACE|CONNECT|HTTP) .*[\\*].*$")'
+            - 'IsMatch(name, "^(HEAD|OPTIONS|HTTP)( |$).*")'
+      {{- if .Values.otelCollector.k8sAttributes.enabled }}
+      k8sattributes:
+        auth_type: serviceAccount
+        passthrough: false
+        extract:
+          metadata:
+            - k8s.namespace.name
+            - k8s.pod.name
+            - k8s.pod.uid
+            - k8s.node.name
+            - k8s.deployment.name
+            - k8s.replicaset.name
+            - k8s.daemonset.name
+            - k8s.statefulset.name
+            - k8s.job.name
+            - k8s.cronjob.name
+            - k8s.container.name
+        pod_association:
+          - sources:
+              - from: resource_attribute
+                name: k8s.pod.uid
+          - sources:
+              - from: resource_attribute
+                name: k8s.pod.ip
+          - sources:
+              - from: connection
+      resource/k8s_instance:
+        attributes:
+          - key: service.instance.id
+            from_attribute: k8s.pod.uid
+            action: insert
+      {{- end }}
+      memory_limiter:
+        limit_mib: 512
+        check_interval: 5s
+      batch:
+        timeout: 5s
+        send_batch_size: 1000
+
+    exporters:
+      kafka:
+        brokers:
+          - kafka:9092
+        traces:
+          topic: otel-traces
+          encoding: otlp_proto
+        logs:
+          topic: otel-logs
+          encoding: otlp_json
+        metrics:
+          topic: otel-metrics
+          encoding: otlp_proto
+
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [{{- if .Values.otelCollector.k8sAttributes.enabled }}k8sattributes, resource/k8s_instance, {{- end }}filter/drop_http_noise, memory_limiter, batch]
+          exporters: [kafka]
+        logs:
+          receivers: [otlp]
+          processors: [{{- if .Values.otelCollector.k8sAttributes.enabled }}k8sattributes, resource/k8s_instance, {{- end }}memory_limiter, batch]
+          exporters: [kafka]
+        metrics:
+          receivers: [otlp]
+          processors: [{{- if .Values.otelCollector.k8sAttributes.enabled }}k8sattributes, resource/k8s_instance, {{- end }}memory_limiter, batch]
+          exporters: [kafka]
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-exporter-config
+  namespace: {{ include "quasar-tracing.namespace" . }}
+  labels:
+    {{- include "quasar-tracing.labels" . | nindent 4 }}
+data:
+  otel-exporter-config.yaml: |
+    receivers:
+      kafka:
+        brokers:
+          - kafka:9092
+        group_id: otel-exporter-consumer
+        traces:
+          topics:
+            - otel-traces
+          encoding: otlp_proto
+        logs:
+          topics:
+            - otel-logs
+          encoding: otlp_json
+        metrics:
+          topics:
+            - otel-metrics
+          encoding: otlp_proto
+
+    processors:
+      filter/drop_http_noise:
+        error_mode: ignore
+        traces:
+          span:
+            - 'IsMatch(name, "^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|TRACE|CONNECT|HTTP)$")'
+            - 'IsMatch(name, "^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|TRACE|CONNECT|HTTP) /$")'
+            - 'IsMatch(name, "^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|TRACE|CONNECT|HTTP) /api/?$")'
+            - 'IsMatch(name, "^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|TRACE|CONNECT|HTTP) /error$")'
+            - 'IsMatch(name, "^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|TRACE|CONNECT|HTTP) .*[\\*].*$")'
+            - 'IsMatch(name, "^(HEAD|OPTIONS|HTTP)( |$).*")'
+      batch:
+        timeout: 5s
+        send_batch_size: 5000
+
+    exporters:
+      clickhouse/traces:
+        endpoint: tcp://clickhouse:9000?dial_timeout=10s
+        username: ${env:CLICKHOUSE_USER}
+        password: ${env:CLICKHOUSE_PASSWORD}
+        database: quasar_tracing
+        traces_table_name: spans
+        create_schema: true
+        ttl: 72h
+      clickhouse/logs:
+        endpoint: tcp://clickhouse:9000?dial_timeout=10s
+        username: ${env:CLICKHOUSE_USER}
+        password: ${env:CLICKHOUSE_PASSWORD}
+        database: quasar_tracing
+        logs_table_name: logs
+        create_schema: true
+        ttl: 72h
+      clickhouse/metrics:
+        endpoint: tcp://clickhouse:9000?dial_timeout=10s
+        username: ${env:CLICKHOUSE_USER}
+        password: ${env:CLICKHOUSE_PASSWORD}
+        database: quasar_tracing
+        metrics_table_name: otel_metrics
+        create_schema: true
+        ttl: 72h
+
+    extensions:
+      health_check:
+        endpoint: 0.0.0.0:13133
+
+    service:
+      extensions: [health_check]
+      pipelines:
+        traces:
+          receivers: [kafka]
+          processors: [filter/drop_http_noise, batch]
+          exporters: [clickhouse/traces]
+        logs:
+          receivers: [kafka]
+          processors: [batch]
+          exporters: [clickhouse/logs]
+        metrics:
+          receivers: [kafka]
+          processors: [batch]
+          exporters: [clickhouse/metrics]
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: control-panel-nginx
+  namespace: {{ include "quasar-tracing.namespace" . }}
+  labels:
+    {{- include "quasar-tracing.labels" . | nindent 4 }}
+data:
+  nginx.conf: |
+    server {
+        listen 80;
+        server_name _;
+
+        root /usr/share/nginx/html;
+        index index.html;
+
+        location / {
+            try_files $uri $uri/ /index.html;
+        }
+
+        location /api/ {
+            proxy_pass http://control-panel-server:8080;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: clickhouse-init-sql
+  namespace: {{ include "quasar-tracing.namespace" . }}
+  labels:
+    {{- include "quasar-tracing.labels" . | nindent 4 }}
+data:
+{{- range $path, $_ := .Files.Glob "files/sql/*.sql" }}
+  {{ base $path }}: |
+{{ $.Files.Get $path | indent 4 }}
+{{- end }}

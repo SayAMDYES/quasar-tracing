@@ -1,0 +1,5 @@
+target/
+opentelemetry-javaagent.jar
+*.log
+.git
+README.md

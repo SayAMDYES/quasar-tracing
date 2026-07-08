@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.quasar.tracing.clickhouse.mapper.TraceMapper">
+
+    <resultMap id="traceSummaryResultMap" type="org.quasar.tracing.clickhouse.entity.TraceSummaryEntity" autoMapping="true">
+        <result column="resourceAttributes" property="resourceAttributes"
+                typeHandler="org.quasar.tracing.clickhouse.handler.StringMapTypeHandler"/>
+    </resultMap>
+
+    <!--
+      Shared FROM / WHERE / GROUP BY / HAVING. HAVING repeats the full duration
+      expression (never the SELECT alias) so this fragment also works inside the
+      count subquery, whose inner SELECT only projects TraceId.
+    -->
+    <sql id="searchBody">
+        FROM quasar_tracing.spans
+        WHERE Timestamp BETWEEN fromUnixTimestamp64Milli(#{from}) AND fromUnixTimestamp64Milli(#{to})
+        GROUP BY TraceId
+        HAVING 1 = 1
+        <if test="service != null and service != ''">
+            AND has(groupUniqArray(ServiceName), #{service})
+        </if>
+        <if test="operation != null and operation != ''">
+            AND argMin(SpanName, Timestamp) = #{operation}
+        </if>
+        <if test="status == 'error'">
+            AND countIf(StatusCode = 'Error') > 0
+        </if>
+        <if test="status == 'ok'">
+            AND countIf(StatusCode = 'Error') = 0
+        </if>
+        <if test="environment != null and environment != ''">
+            AND any(ResourceAttributes['deployment.environment.name']) = #{environment}
+        </if>
+        <if test="namespace != null and namespace != ''">
+            AND (
+                any(ResourceAttributes['service.namespace']) = #{namespace}
+                OR if(indexOf(mapKeys(any(ResourceAttributes)), 'k8s.namespace.name') = 0, '',
+                    arrayElement(mapValues(any(ResourceAttributes)), indexOf(mapKeys(any(ResourceAttributes)), 'k8s.namespace.name'))) = #{namespace}
+            )
+        </if>
+        <if test="k8sNamespace != null and k8sNamespace != ''">
+            AND if(indexOf(mapKeys(any(ResourceAttributes)), 'k8s.namespace.name') = 0, '',
+                arrayElement(mapValues(any(ResourceAttributes)), indexOf(mapKeys(any(ResourceAttributes)), 'k8s.namespace.name'))) = #{k8sNamespace}
+        </if>
+        <if test="k8sPodName != null and k8sPodName != ''">
+            AND if(indexOf(mapKeys(any(ResourceAttributes)), 'k8s.pod.name') = 0, '',
+                arrayElement(mapValues(any(ResourceAttributes)), indexOf(mapKeys(any(ResourceAttributes)), 'k8s.pod.name'))) = #{k8sPodName}
+        </if>
+        <if test="k8sNodeName != null and k8sNodeName != ''">
+            AND if(indexOf(mapKeys(any(ResourceAttributes)), 'k8s.node.name') = 0, '',
+                arrayElement(mapValues(any(ResourceAttributes)), indexOf(mapKeys(any(ResourceAttributes)), 'k8s.node.name'))) = #{k8sNodeName}
+        </if>
+        <if test="serviceInstanceId != null and serviceInstanceId != ''">
+            AND if(indexOf(mapKeys(any(ResourceAttributes)), 'service.instance.id') = 0, '',
+                arrayElement(mapValues(any(ResourceAttributes)), indexOf(mapKeys(any(ResourceAttributes)), 'service.instance.id'))) = #{serviceInstanceId}
+        </if>
+        <if test="minDurationNs != null and minDurationNs > 0">
+            AND (max(toUnixTimestamp64Nano(Timestamp) + Duration) - min(toUnixTimestamp64Nano(Timestamp))) >= #{minDurationNs}
+        </if>
+        <if test="maxDurationNs != null and maxDurationNs > 0">
+            AND (max(toUnixTimestamp64Nano(Timestamp) + Duration) - min(toUnixTimestamp64Nano(Timestamp))) &lt;= #{maxDurationNs}
+        </if>
+        <if test="q != null and q != ''">
+            AND (positionCaseInsensitive(argMin(SpanName, Timestamp), #{q}) > 0 OR position(TraceId, #{q}) > 0)
+        </if>
+    </sql>
+
+    <select id="search" resultMap="traceSummaryResultMap">
+        SELECT
+            TraceId AS traceId,
+            argMin(ServiceName, Timestamp) AS rootService,
+            argMin(SpanName, Timestamp)    AS rootName,
+            toUnixTimestamp64Milli(min(Timestamp)) AS startTime,
+            toUInt64(max(toUnixTimestamp64Nano(Timestamp) + Duration) - min(toUnixTimestamp64Nano(Timestamp))) AS durationNs,
+            toUInt32(count())              AS spanCount,
+            toUInt32(countIf(StatusCode = 'Error')) AS errorCount,
+            if(countIf(StatusCode = 'Error') > 0, 'Error', 'Ok') AS status,
+            any(ResourceAttributes) AS resourceAttributes
+        <include refid="searchBody"/>
+        ORDER BY
+        <choose>
+            <when test="sort == 'duration'">durationNs</when>
+            <when test="sort == 'spans'">spanCount</when>
+            <otherwise>startTime</otherwise>
+        </choose>
+        <choose>
+            <when test="order == 'asc'">ASC</when>
+            <otherwise>DESC</otherwise>
+        </choose>
+        <!-- ${} because the JDBC driver's SQL parser rejects ? inside LIMIT/OFFSET;
+             both values are service-clamped integers, never raw user input. -->
+        LIMIT ${limit} OFFSET ${offset}
+    </select>
+
+    <select id="countSearch" resultType="long">
+        SELECT count()
+        FROM (
+            SELECT TraceId
+            <include refid="searchBody"/>
+        )
+    </select>
+
+</mapper>

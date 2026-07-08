@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.quasar.tracing.clickhouse.mapper.ServiceMapper">
+
+    <select id="selectNodeStats" resultType="org.quasar.tracing.clickhouse.entity.ServiceNodeStatEntity">
+        SELECT
+            stats.name,
+            stats.calls,
+            stats.errorRate,
+            stats.avgDurationNs,
+            tech.tech,
+            stats.q[1] AS p50,
+            stats.q[2] AS p90,
+            stats.q[3] AS p99
+        FROM (
+            SELECT
+                service_name AS name,
+                toUInt64(count()) AS calls,
+                sumIf(1, is_error = 1) / count() AS errorRate,
+                avg(duration_ns) AS avgDurationNs,
+                quantiles(0.5, 0.9, 0.99)(duration_ns) AS q
+            FROM quasar_tracing.span_service_index
+            WHERE timestamp BETWEEN fromUnixTimestamp64Milli(#{from}) AND fromUnixTimestamp64Milli(#{to})
+            GROUP BY service_name
+        ) AS stats
+        LEFT JOIN (
+            SELECT
+                ServiceName AS name,
+                nullIf(multiIf(
+                    positionCaseInsensitive(ServiceName, 'clickhouse') > 0, 'ClickHouse',
+                    positionCaseInsensitive(ServiceName, 'redis') > 0, 'Redis',
+                    positionCaseInsensitive(ServiceName, 'kafka') > 0, 'Kafka',
+                    positionCaseInsensitive(ServiceName, 'mysql') > 0, 'MySQL',
+                    positionCaseInsensitive(ServiceName, 'mongodb') > 0 OR positionCaseInsensitive(ServiceName, 'mongo') > 0, 'MongoDB',
+                    positionCaseInsensitive(ServiceName, 'postgresql') > 0 OR positionCaseInsensitive(ServiceName, 'postgres') > 0, 'PostgreSQL',
+                    positionCaseInsensitive(ServiceName, 'elasticsearch') > 0, 'Elasticsearch',
+                    positionCaseInsensitive(ServiceName, 'rabbitmq') > 0, 'RabbitMQ',
+                    positionCaseInsensitive(ServiceName, 'rocketmq') > 0, 'RocketMQ',
+                    positionCaseInsensitive(ServiceName, 'nginx') > 0, 'Nginx',
+                    countIf(positionCaseInsensitive(ScopeName, 'spring') > 0
+                        OR positionCaseInsensitive(ResourceAttributes['telemetry.distro.name'], 'spring') > 0
+                        OR indexOf(mapKeys(ResourceAttributes), 'spring.application.name') > 0) > 0, 'Spring',
+                    countIf(ResourceAttributes['telemetry.sdk.language'] = 'java') > 0, 'Java',
+                    countIf(ResourceAttributes['telemetry.sdk.language'] = 'go') > 0, 'Go',
+                    ''
+                ), '') AS tech
+            FROM quasar_tracing.spans
+            WHERE Timestamp BETWEEN fromUnixTimestamp64Milli(#{from}) AND fromUnixTimestamp64Milli(#{to})
+            GROUP BY ServiceName
+        ) AS tech ON stats.name = tech.name
+    </select>
+
+    <resultMap id="edgeResultMap" type="org.quasar.tracing.clickhouse.entity.ServiceEdgeEntity" autoMapping="true">
+        <result column="operations" property="operations"
+                typeHandler="org.quasar.tracing.clickhouse.handler.StringListTypeHandler"/>
+    </resultMap>
+
+    <select id="selectEdges" resultMap="edgeResultMap">
+        SELECT
+            caller_service AS caller,
+            callee_service AS callee,
+            toUInt64(sum(call_count)) AS callCount,
+            toUInt64(sum(error_count)) AS errorCount,
+            sum(error_count) / sum(call_count) AS errorRate,
+            avg(duration_avg) AS avgDurationNs,
+            groupUniqArray(span_name) AS operations
+        FROM quasar_tracing.service_dependency
+        WHERE time_bucket BETWEEN fromUnixTimestamp64Milli(#{from}) AND fromUnixTimestamp64Milli(#{to})
+        GROUP BY caller, callee
+    </select>
+
+</mapper>

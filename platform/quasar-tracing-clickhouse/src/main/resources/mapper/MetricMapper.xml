@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.quasar.tracing.clickhouse.mapper.MetricMapper">
+
+    <resultMap id="instanceResultMap" type="org.quasar.tracing.clickhouse.entity.MetricInstanceEntity" autoMapping="true">
+        <result column="resourceAttributes" property="resourceAttributes"
+                typeHandler="org.quasar.tracing.clickhouse.handler.StringMapTypeHandler"/>
+    </resultMap>
+
+    <sql id="resourceFilters">
+        <if test="environment != null and environment != ''">
+            AND ResourceAttributes['deployment.environment.name'] = #{environment}
+        </if>
+        <if test="namespace != null and namespace != ''">
+            AND (
+                ResourceAttributes['service.namespace'] = #{namespace}
+                OR if(indexOf(mapKeys(ResourceAttributes), 'k8s.namespace.name') = 0, '',
+                    arrayElement(mapValues(ResourceAttributes), indexOf(mapKeys(ResourceAttributes), 'k8s.namespace.name'))) = #{namespace}
+            )
+        </if>
+        <if test="serviceInstanceId != null and serviceInstanceId != ''">
+            AND if(indexOf(mapKeys(ResourceAttributes), 'service.instance.id') = 0, '',
+                arrayElement(mapValues(ResourceAttributes), indexOf(mapKeys(ResourceAttributes), 'service.instance.id'))) = #{serviceInstanceId}
+        </if>
+    </sql>
+
+    <select id="endpointRed" resultType="org.quasar.tracing.clickhouse.entity.EndpointRedEntity">
+        <choose>
+            <when test="(environment != null and environment != '') or (namespace != null and namespace != '') or (serviceInstanceId != null and serviceInstanceId != '')">
+                SELECT
+                    operation,
+                    requestCount,
+                    errorCount,
+                    q[1] AS p50,
+                    q[2] AS p90,
+                    q[3] AS p99
+                FROM (
+                    SELECT
+                        SpanName AS operation,
+                        toUInt64(count()) AS requestCount,
+                        toUInt64(countIf(StatusCode = 'Error')) AS errorCount,
+                        quantiles(0.5, 0.9, 0.99)(Duration) AS q
+                    FROM quasar_tracing.spans
+                    WHERE ServiceName = #{service}
+                      AND SpanKind = 'Server'
+                      AND Timestamp BETWEEN fromUnixTimestamp64Milli(#{from}) AND fromUnixTimestamp64Milli(#{to})
+                    <include refid="resourceFilters"/>
+                    GROUP BY operation
+                )
+            </when>
+            <otherwise>
+                SELECT
+                    operation,
+                    requestCount,
+                    errorCount,
+                    q[1] AS p50,
+                    q[2] AS p90,
+                    q[3] AS p99
+                FROM (
+                    SELECT
+                        span_name AS operation,
+                        toUInt64(sumMerge(request_count)) AS requestCount,
+                        toUInt64(sumMerge(error_count)) AS errorCount,
+                        quantilesMerge(0.5, 0.9, 0.99)(duration_quantiles) AS q
+                    FROM quasar_tracing.service_endpoint_summary
+                    WHERE service_name = #{service}
+                      AND span_kind = 'Server'
+                      AND time_bucket BETWEEN fromUnixTimestamp64Milli(#{from}) AND fromUnixTimestamp64Milli(#{to})
+                    GROUP BY operation
+                )
+            </otherwise>
+        </choose>
+        ORDER BY requestCount DESC
+    </select>
+
+    <select id="instances" resultMap="instanceResultMap">
+        SELECT
+            serviceInstanceId,
+            requestCount,
+            errorCount,
+            p99,
+            resourceAttributes
+        FROM (
+            SELECT
+                if(indexOf(mapKeys(ResourceAttributes), 'service.instance.id') = 0, '',
+                    arrayElement(mapValues(ResourceAttributes), indexOf(mapKeys(ResourceAttributes), 'service.instance.id'))) AS serviceInstanceId,
+                toUInt64(count()) AS requestCount,
+                toUInt64(countIf(StatusCode = 'Error')) AS errorCount,
+                quantile(0.99)(Duration) AS p99,
+                any(ResourceAttributes) AS resourceAttributes
+            FROM quasar_tracing.spans
+            WHERE ServiceName = #{service}
+              AND SpanKind = 'Server'
+              AND Timestamp BETWEEN fromUnixTimestamp64Milli(#{from}) AND fromUnixTimestamp64Milli(#{to})
+            <include refid="resourceFilters"/>
+            GROUP BY serviceInstanceId
+        )
+        WHERE serviceInstanceId != ''
+        ORDER BY requestCount DESC
+    </select>
+
+    <select id="jvm" resultType="org.quasar.tracing.clickhouse.entity.JvmMetricEntity">
+        WITH
+            memory AS (
+                SELECT
+                    serviceInstanceId,
+                    argMax(heapUsed, timeUnix) AS heapUsed,
+                    argMax(heapLimit, timeUnix) AS heapLimit
+                FROM (
+                    SELECT
+                        ResourceAttributes['service.instance.id'] AS serviceInstanceId,
+                        TimeUnix AS timeUnix,
+                        sumIf(Value, MetricName = 'jvm.memory.used'
+                            AND Attributes['jvm.memory.type'] = 'heap') AS heapUsed,
+                        sumIf(Value, MetricName = 'jvm.memory.limit'
+                            AND Attributes['jvm.memory.type'] = 'heap') AS heapLimit
+                    FROM quasar_tracing.otel_metrics_sum
+                    WHERE ServiceName = #{service}
+                      AND TimeUnix BETWEEN fromUnixTimestamp64Milli(#{from}) AND fromUnixTimestamp64Milli(#{to})
+                      AND MetricName IN ('jvm.memory.used', 'jvm.memory.limit')
+                    <include refid="resourceFilters"/>
+                    GROUP BY serviceInstanceId, timeUnix
+                )
+                WHERE serviceInstanceId != ''
+                GROUP BY serviceInstanceId
+            ),
+            threads AS (
+                SELECT
+                    serviceInstanceId,
+                    argMax(threadCount, timeUnix) AS threadCount
+                FROM (
+                    SELECT
+                        ResourceAttributes['service.instance.id'] AS serviceInstanceId,
+                        TimeUnix AS timeUnix,
+                        sum(Value) AS threadCount
+                    FROM quasar_tracing.otel_metrics_sum
+                    WHERE ServiceName = #{service}
+                      AND TimeUnix BETWEEN fromUnixTimestamp64Milli(#{from}) AND fromUnixTimestamp64Milli(#{to})
+                      AND MetricName = 'jvm.thread.count'
+                    <include refid="resourceFilters"/>
+                    GROUP BY serviceInstanceId, timeUnix
+                )
+                WHERE serviceInstanceId != ''
+                GROUP BY serviceInstanceId
+            ),
+            cpu AS (
+                SELECT
+                    ResourceAttributes['service.instance.id'] AS serviceInstanceId,
+                    argMax(Value, TimeUnix) AS cpuUtilization
+                FROM quasar_tracing.otel_metrics_gauge
+                WHERE ServiceName = #{service}
+                  AND TimeUnix BETWEEN fromUnixTimestamp64Milli(#{from}) AND fromUnixTimestamp64Milli(#{to})
+                  AND MetricName = 'jvm.cpu.recent_utilization'
+                <include refid="resourceFilters"/>
+                GROUP BY serviceInstanceId
+            ),
+            gc AS (
+                SELECT
+                    serviceInstanceId,
+                    (sum(sumDuration) / nullIf(sum(countDuration), 0)) * 1000 AS gcDuration
+                FROM (
+                    SELECT
+                        ResourceAttributes['service.instance.id'] AS serviceInstanceId,
+                        TimeUnix AS timeUnix,
+                        sum(Sum) AS sumDuration,
+                        sum(Count) AS countDuration
+                    FROM quasar_tracing.otel_metrics_histogram
+                    WHERE ServiceName = #{service}
+                      AND TimeUnix BETWEEN fromUnixTimestamp64Milli(#{from}) AND fromUnixTimestamp64Milli(#{to})
+                      AND MetricName = 'jvm.gc.duration'
+                    <include refid="resourceFilters"/>
+                    GROUP BY serviceInstanceId, timeUnix
+                )
+                WHERE serviceInstanceId != ''
+                GROUP BY serviceInstanceId
+            )
+        SELECT
+            memory.serviceInstanceId AS serviceInstanceId,
+            heapUsed,
+            heapLimit,
+            cpuUtilization,
+            threadCount,
+            gcDuration
+        FROM memory
+        LEFT JOIN cpu USING serviceInstanceId
+        LEFT JOIN threads USING serviceInstanceId
+        LEFT JOIN gc USING serviceInstanceId
+    </select>
+
+    <select id="series" resultType="org.quasar.tracing.clickhouse.entity.MetricSeriesSliceEntity">
+        <choose>
+            <when test="(environment != null and environment != '') or (namespace != null and namespace != '') or (serviceInstanceId != null and serviceInstanceId != '')">
+                SELECT
+                    time,
+                    requests,
+                    errors,
+                    q[1] AS p50,
+                    q[2] AS p90,
+                    q[3] AS p99
+                FROM (
+                    SELECT
+                        toUInt64(toUnixTimestamp(toStartOfInterval(Timestamp, toIntervalSecond(#{stepSec})))) * 1000 AS time,
+                        toFloat64(count()) AS requests,
+                        toFloat64(countIf(StatusCode = 'Error')) AS errors,
+                        quantiles(0.5, 0.9, 0.99)(Duration) AS q
+                    FROM quasar_tracing.spans
+                    WHERE ServiceName = #{service}
+                      AND SpanKind = 'Server'
+                      AND Timestamp BETWEEN fromUnixTimestamp64Milli(#{from}) AND fromUnixTimestamp64Milli(#{to})
+                    <include refid="resourceFilters"/>
+                    GROUP BY time
+                )
+            </when>
+            <otherwise>
+                SELECT
+                    time,
+                    requests,
+                    errors,
+                    q[1] AS p50,
+                    q[2] AS p90,
+                    q[3] AS p99
+                FROM (
+                    SELECT
+                        toUInt64(toUnixTimestamp(toStartOfInterval(time_bucket, toIntervalSecond(#{stepSec})))) * 1000 AS time,
+                        toFloat64(sumMerge(request_count)) AS requests,
+                        toFloat64(sumMerge(error_count)) AS errors,
+                        quantilesMerge(0.5, 0.9, 0.99)(duration_quantiles) AS q
+                    FROM quasar_tracing.service_endpoint_summary
+                    WHERE service_name = #{service}
+                      AND span_kind = 'Server'
+                      AND time_bucket BETWEEN fromUnixTimestamp64Milli(#{from}) AND fromUnixTimestamp64Milli(#{to})
+                    GROUP BY time
+                )
+            </otherwise>
+        </choose>
+        ORDER BY time
+    </select>
+
+</mapper>
