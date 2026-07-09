@@ -6,7 +6,7 @@
  * @author Quasar
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Table, Select, Input, Card, Typography, Tag, Switch, Space } from 'antd';
+import { Button, Table, Select, Input, Card, Typography, Tag, Switch, Space, Tabs } from 'antd';
 import { ClearOutlined, DisconnectOutlined, PauseCircleOutlined, PlayCircleOutlined } from '@ant-design/icons';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -68,6 +68,8 @@ export default function LogSearchPage() {
   const [liveStatus, setLiveStatus] = useState('stopped');
   const [liveCursor, setLiveCursor] = useState(null);
   const [liveAutoScroll, setLiveAutoScroll] = useState(true);
+  const [liveSeeding, setLiveSeeding] = useState(false);
+  const [liveResetKey, setLiveResetKey] = useState(0);
   const streamRef = useRef(null);
   const consoleRef = useRef(null);
   const liveFilterKeyRef = useRef(null);
@@ -102,6 +104,48 @@ export default function LogSearchPage() {
   );
 
   const apply = () => setApplied(form);
+
+  const startRealtime = async () => {
+    setLiveSeeding(true);
+    setLiveItems([]);
+    setLivePaused(false);
+    setLiveStatus('connecting');
+
+    let cursor = Date.now();
+    try {
+      const history = await searchLogs({
+        ...applied,
+        traceId,
+        spanId,
+        from: range.from,
+        to: range.to,
+        limit: 50,
+      });
+      const items = [...(history.items || [])].reverse();
+      if (items.length) {
+        const latestTimestamp = Math.max(...items.map((item) => Number(item.timestamp || 0)).filter(Number.isFinite));
+        if (Number.isFinite(latestTimestamp)) {
+          cursor = latestTimestamp;
+        }
+        setLiveItems(items);
+      }
+    } catch {
+      cursor = Date.now();
+    } finally {
+      setLiveCursor(cursor);
+      liveFilterKeyRef.current = liveFilterKey;
+      setLiveEnabled(true);
+      setLiveSeeding(false);
+    }
+  };
+
+  const clearRealtime = () => {
+    setLiveItems([]);
+    if (liveEnabled && !livePaused) {
+      setLiveCursor((cursor) => cursor || Date.now());
+      setLiveResetKey((value) => value + 1);
+    }
+  };
 
   const liveFilterKey = useMemo(
     () => JSON.stringify({
@@ -170,7 +214,7 @@ export default function LogSearchPage() {
       source.close();
       if (streamRef.current === source) streamRef.current = null;
     };
-  }, [liveEnabled, livePaused, liveFilterKey]);
+  }, [liveEnabled, livePaused, liveFilterKey, liveResetKey]);
 
   useEffect(() => {
     if (!liveAutoScroll || !consoleRef.current) return;
@@ -401,94 +445,109 @@ export default function LogSearchPage() {
         </div>
       </Toolbar>
 
-      <Card
-        size="small"
-        className="log-live-card"
-        title={t('logs.realtime')}
-        extra={<Text type="secondary">{t(`logs.${liveStatusLabel}`)}</Text>}
-      >
-        <div className="log-live-toolbar">
-          <Space wrap>
-            {!liveEnabled ? (
-              <Button
-                icon={<PlayCircleOutlined />}
-                type="primary"
-                onClick={() => {
-                  setLiveItems([]);
-                  setLiveCursor(Date.now());
-                  setLivePaused(false);
-                  setLiveEnabled(true);
-                }}
+      <Tabs
+        className="log-mode-tabs"
+        defaultActiveKey="search"
+        items={[
+          {
+            key: 'search',
+            label: t('logs.title'),
+            children: (
+              <>
+                <Card size="small" title={t('logs.volumeBySeverity')} style={{ marginBottom: 16 }}>
+                  <AsyncBoundary loading={loading && !data} error={error} onRetry={refetch} skeleton={<div style={{ height: 150 }} />}>
+                    {histogramOption && <EChart option={histogramOption} height={150} />}
+                  </AsyncBoundary>
+                </Card>
+
+                <div style={{ marginBottom: 10 }}>
+                  <Text type="secondary" style={{ fontSize: 13 }}>
+                    {data ? t('logs.countRecords', { n: formatInt(data.total) }) : t('logs.searching')}
+                    {data && data.total > data.items.length ? ` · ${t('common.showingFirst', { n: data.items.length })}` : ''}
+                  </Text>
+                </div>
+
+                <Table
+                  rowKey="id"
+                  className="data-table"
+                  size="small"
+                  loading={loading}
+                  columns={columns}
+                  dataSource={data?.items || []}
+                  pagination={{ pageSize: 25, showSizeChanger: false, size: 'small' }}
+                  scroll={{ x: 1664 }}
+                  onRow={(r) => ({ onClick: () => setSelected(r), style: { cursor: 'pointer' } })}
+                />
+              </>
+            ),
+          },
+          {
+            key: 'realtime',
+            label: t('logs.realtime'),
+            children: (
+              <Card
+                size="small"
+                className="log-live-card"
+                title={t('logs.realtime')}
+                extra={<Text type="secondary">{t(`logs.${liveStatusLabel}`)}</Text>}
               >
-                {t('logs.startRealtime')}
-              </Button>
-            ) : (
-              <Button
-                icon={<DisconnectOutlined />}
-                onClick={() => {
-                  setLiveEnabled(false);
-                  setLivePaused(false);
-                  setLiveStatus('stopped');
-                }}
-              >
-                {t('logs.stopRealtime')}
-              </Button>
-            )}
-            <Button
-              icon={livePaused ? <PlayCircleOutlined /> : <PauseCircleOutlined />}
-              disabled={!liveEnabled}
-              onClick={() => setLivePaused((value) => !value)}
-            >
-              {livePaused ? t('logs.resumeRealtime') : t('logs.pauseRealtime')}
-            </Button>
-            <Button icon={<ClearOutlined />} onClick={() => setLiveItems([])}>
-              {t('logs.clearRealtime')}
-            </Button>
-            <span className="log-live-autoscroll">
-              <Switch size="small" checked={liveAutoScroll} onChange={setLiveAutoScroll} />
-              <Text type="secondary">{t('logs.autoScroll')}</Text>
-            </span>
-          </Space>
-          <Text type="secondary" className="log-live-hint">{t('logs.realtimeHint')}</Text>
-        </div>
-        <div ref={consoleRef} className="log-live-console">
-          {liveItems.map((item, index) => (
-            <div
-              key={`${item.timestamp}-${item.service}-${item.traceId}-${item.spanId}-${index}`}
-              className={`log-live-row severity-${item.severity || 'UNKNOWN'}`}
-            >
-              <span className="log-live-time">{formatTime(item.timestamp)}</span>
-              <span className="log-live-severity">{item.severity || '-'}</span>
-              <span className="log-live-service">{item.service || '-'}</span>
-              <span className="log-live-body">{item.body || ''}</span>
-            </div>
-          ))}
-        </div>
-      </Card>
-
-      <Card size="small" title={t('logs.volumeBySeverity')} style={{ marginBottom: 16 }}>
-        <AsyncBoundary loading={loading && !data} error={error} onRetry={refetch} skeleton={<div style={{ height: 150 }} />}>
-          {histogramOption && <EChart option={histogramOption} height={150} />}
-        </AsyncBoundary>
-      </Card>
-
-      <div style={{ marginBottom: 10 }}>
-        <Text type="secondary" style={{ fontSize: 13 }}>
-          {data ? t('logs.countRecords', { n: formatInt(data.total) }) : t('logs.searching')}
-          {data && data.total > data.items.length ? ` · ${t('common.showingFirst', { n: data.items.length })}` : ''}
-        </Text>
-      </div>
-
-      <Table
-        rowKey="id"
-        className="data-table"
-        size="small"
-        loading={loading}
-        columns={columns}
-        dataSource={data?.items || []}
-        pagination={{ pageSize: 25, showSizeChanger: false, size: 'small' }}
-        scroll={{ x: 1664 }}
-        onRow={(r) => ({ onClick: () => setSelected(r), style: { cursor: 'pointer' } })}
+                <div className="log-live-toolbar">
+                  <Space wrap>
+                    {!liveEnabled ? (
+                      <Button
+                        icon={<PlayCircleOutlined />}
+                        type="primary"
+                        loading={liveSeeding}
+                        onClick={startRealtime}
+                      >
+                        {t('logs.startRealtime')}
+                      </Button>
+                    ) : (
+                      <Button
+                        icon={<DisconnectOutlined />}
+                        onClick={() => {
+                          setLiveEnabled(false);
+                          setLivePaused(false);
+                          setLiveStatus('stopped');
+                        }}
+                      >
+                        {t('logs.stopRealtime')}
+                      </Button>
+                    )}
+                    <Button
+                      icon={livePaused ? <PlayCircleOutlined /> : <PauseCircleOutlined />}
+                      disabled={!liveEnabled}
+                      onClick={() => setLivePaused((value) => !value)}
+                    >
+                      {livePaused ? t('logs.resumeRealtime') : t('logs.pauseRealtime')}
+                    </Button>
+                    <Button icon={<ClearOutlined />} onClick={clearRealtime}>
+                      {t('logs.clearRealtime')}
+                    </Button>
+                    <span className="log-live-autoscroll">
+                      <Switch size="small" checked={liveAutoScroll} onChange={setLiveAutoScroll} />
+                      <Text type="secondary">{t('logs.autoScroll')}</Text>
+                    </span>
+                  </Space>
+                  <Text type="secondary" className="log-live-hint">{t('logs.realtimeHint')}</Text>
+                </div>
+                <div ref={consoleRef} className="log-live-console">
+                  {liveItems.map((item, index) => (
+                    <div
+                      key={`${item.timestamp}-${item.service}-${item.traceId}-${item.spanId}-${index}`}
+                      className={`log-live-row severity-${item.severity || 'UNKNOWN'}`}
+                    >
+                      <span className="log-live-time">{formatTime(item.timestamp)}</span>
+                      <span className="log-live-severity">{item.severity || '-'}</span>
+                      <span className="log-live-service">{item.service || '-'}</span>
+                      <span className="log-live-body">{item.body || ''}</span>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            ),
+          },
+        ]}
       />
 
       <LogDetailDrawer log={selected} open={!!selected} onClose={() => setSelected(null)} />
