@@ -16,9 +16,10 @@ public final class TimeWindowUtil {
     private TimeWindowUtil() {
     }
 
-    /** Resolves the window end: the given value, or "now" when null. */
+    /** Resolves the window end: the given value capped at "now", or "now" when null. */
     public static Long resolveTo(Long to) {
-        return to != null ? to : System.currentTimeMillis();
+        long now = System.currentTimeMillis();
+        return to != null ? Math.min(to, now) : now;
     }
 
     /** Resolves the window start: the given value, or 24h before {@code to} when null. */
@@ -44,5 +45,10 @@ public final class TimeWindowUtil {
     /** Bucket size in milliseconds. */
     public static Long stepMs(Long fromMs, Long toMs) {
         return stepSeconds(fromMs, toMs) * 1000L;
+    }
+
+    /** Aligns the first chart bucket to the same boundary used by ClickHouse time grouping. */
+    public static Long alignBucketStart(Long fromMs, Long stepMs) {
+        return Math.floorDiv(fromMs, stepMs) * stepMs;
     }
 }

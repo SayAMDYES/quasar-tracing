@@ -1,5 +1,7 @@
 package org.quasar.tracing.core.service;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.ToDoubleFunction;
@@ -42,9 +44,8 @@ public class MetricsService {
         Integer stepSec = TimeWindowUtil.stepSeconds(fromMs, toMs);
         Long stepMs = TimeWindowUtil.stepMs(fromMs, toMs);
 
-        List<MetricPointDTO> series = metricMapper.series(service, environment, namespace, serviceInstanceId,
-                fromMs, toMs, stepSec).stream()
-            .map(slice -> toPoint(slice, stepSec)).toList();
+        List<MetricPointDTO> series = completeSeries(metricMapper.series(service, environment, namespace,
+            serviceInstanceId, fromMs, toMs, stepSec), fromMs, toMs, stepMs, stepSec);
         List<EndpointRedDTO> endpoints = endpointRedAssembler.assemble(
             metricMapper.endpointRed(service, environment, namespace, serviceInstanceId, fromMs, toMs), fromMs, toMs);
         List<MetricInstanceDTO> instances = instances(
@@ -59,6 +60,21 @@ public class MetricsService {
         Double errorRate = slice.getRequests() > 0 ? slice.getErrors() / slice.getRequests() * 100.0 : 0.0;
         return new MetricPointDTO(slice.getTime(), requests, errors, errorRate,
             nsToMs(slice.getP50()), nsToMs(slice.getP90()), nsToMs(slice.getP99()));
+    }
+
+    private static List<MetricPointDTO> completeSeries(List<MetricSeriesSliceEntity> slices,
+            Long fromMs, Long toMs, Long stepMs, Integer stepSec) {
+        Map<Long, MetricPointDTO> pointsByBucket = new LinkedHashMap<>();
+        for (MetricSeriesSliceEntity slice : slices) {
+            pointsByBucket.put(slice.getTime(), toPoint(slice, stepSec));
+        }
+
+        List<MetricPointDTO> points = new ArrayList<>();
+        long start = TimeWindowUtil.alignBucketStart(fromMs, stepMs);
+        for (long bucket = start; bucket < toMs; bucket += stepMs) {
+            points.add(pointsByBucket.getOrDefault(bucket, new MetricPointDTO(bucket, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)));
+        }
+        return points;
     }
 
     private static MetricsSummaryDTO summarize(List<MetricPointDTO> series) {

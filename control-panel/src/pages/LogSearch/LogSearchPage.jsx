@@ -19,7 +19,7 @@ import { SeverityTag, ServiceBadge } from '@/components/tags';
 import { useApp } from '@/context/AppContext';
 import useFetch from '@/hooks/useFetch';
 import { searchLogs, fetchFilters } from '@/api';
-import { buildSeverityHistogram } from '@/charts/options';
+import { buildSeverityHistogram, pickTimeStep } from '@/charts/options';
 import { formatTime, formatInt } from '@/utils/format';
 
 const { Text } = Typography;
@@ -95,8 +95,8 @@ export default function LogSearchPage() {
 
   const histogramOption = useMemo(() => {
     if (!data?.histogram) return null;
-    const step = (range.to - range.from) / Math.max(1, data.histogram.length);
-    return buildSeverityHistogram(data.histogram, step);
+    const step = pickTimeStep(range.from, range.to);
+    return buildSeverityHistogram(data.histogram, step, { from: range.from, to: range.to });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, range, i18n.language]);
 

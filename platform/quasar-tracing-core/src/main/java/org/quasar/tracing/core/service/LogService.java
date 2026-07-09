@@ -79,8 +79,8 @@ public class LogService {
         }
 
         List<Map<String, Object>> rows = new ArrayList<>();
-        long start = (fromMs / stepMs) * stepMs;
-        for (long bucket = start; bucket <= toMs; bucket += stepMs) {
+        long start = TimeWindowUtil.alignBucketStart(fromMs, stepMs);
+        for (long bucket = start; bucket < toMs; bucket += stepMs) {
             Map<String, Object> row = new LinkedHashMap<>();
             row.put(TIME_KEY, bucket);
             Map<String, Object> counts = countsByBucket.get(bucket);

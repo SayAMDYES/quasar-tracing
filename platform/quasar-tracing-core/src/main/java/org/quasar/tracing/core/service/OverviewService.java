@@ -2,7 +2,9 @@ package org.quasar.tracing.core.service;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.ToDoubleFunction;
 import lombok.RequiredArgsConstructor;
 import org.quasar.tracing.clickhouse.entity.LogEntity;
@@ -51,8 +53,8 @@ public class OverviewService {
         Long fromMs = TimeWindowUtil.resolveFrom(from, toMs);
         Integer stepSec = TimeWindowUtil.stepSeconds(fromMs, toMs);
 
-        List<OverviewPointDTO> series = overviewMapper.platformSeries(fromMs, toMs, stepSec).stream()
-            .map(slice -> toPoint(slice, stepSec)).toList();
+        List<OverviewPointDTO> series = completeSeries(overviewMapper.platformSeries(fromMs, toMs, stepSec), fromMs,
+            toMs, TimeWindowUtil.stepMs(fromMs, toMs), stepSec);
         List<ServiceStatDTO> appServices = serviceMapService.services(fromMs, toMs).stream()
             .filter(s -> "app".equals(s.getType())).toList();
         List<TopEndpointDTO> topEndpoints = topEndpoints(appServices, fromMs, toMs);
@@ -109,6 +111,21 @@ public class OverviewService {
         Double errors = slice.getErrors() / stepSec;
         Double errorRate = slice.getRequests() > 0 ? slice.getErrors() / slice.getRequests() * 100.0 : 0.0;
         return new OverviewPointDTO(slice.getTime(), requests, errors, errorRate, nsToMs(slice.getP99()));
+    }
+
+    private static List<OverviewPointDTO> completeSeries(List<MetricSeriesSliceEntity> slices,
+            Long fromMs, Long toMs, Long stepMs, Integer stepSec) {
+        Map<Long, OverviewPointDTO> pointsByBucket = new LinkedHashMap<>();
+        for (MetricSeriesSliceEntity slice : slices) {
+            pointsByBucket.put(slice.getTime(), toPoint(slice, stepSec));
+        }
+
+        List<OverviewPointDTO> points = new ArrayList<>();
+        long start = TimeWindowUtil.alignBucketStart(fromMs, stepMs);
+        for (long bucket = start; bucket < toMs; bucket += stepMs) {
+            points.add(pointsByBucket.getOrDefault(bucket, new OverviewPointDTO(bucket, 0.0, 0.0, 0.0, 0.0)));
+        }
+        return points;
     }
 
     private static TopEndpointDTO toTopEndpoint(String service, EndpointRedDTO red) {

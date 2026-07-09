@@ -29,6 +29,7 @@ const LINE_MOTION = {
 
 const grid = (over = {}) => ({ left: 12, right: 16, top: 28, bottom: 8, containLabel: true, ...over });
 const stagger = (step, max) => (index) => Math.min(index * step, max);
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 const tooltipBox = (extra = {}) => ({
   backgroundColor: '#FFFFFF',
@@ -41,14 +42,54 @@ const tooltipBox = (extra = {}) => ({
   ...extra,
 });
 
-function timeAxis(step, over = {}) {
+export function pickTimeStep(from, to) {
+  const span = Math.max(0, Number(to || 0) - Number(from || 0));
+  if (span <= 60 * 60 * 1000) return 60 * 1000;
+  if (span <= 6 * 60 * 60 * 1000) return 5 * 60 * 1000;
+  if (span <= DAY_MS) return 15 * 60 * 1000;
+  return 60 * 60 * 1000;
+}
+
+function timeAxisBounds(extent) {
+  if (!extent) return {};
+  const min = Number(extent.from ?? extent.min);
+  const rawMax = Number(extent.to ?? extent.max);
+  if (!Number.isFinite(min) || !Number.isFinite(rawMax) || min >= rawMax) return {};
+  return { min, max: Math.min(rawMax, Date.now()) };
+}
+
+function timeAxisSplitNumber(bounds) {
+  if (!bounds.min || !bounds.max) return 5;
+  const span = bounds.max - bounds.min;
+  if (span <= 60 * 60 * 1000) return 4;
+  if (span <= 6 * 60 * 60 * 1000) return 5;
+  return 6;
+}
+
+function looksLikeTimeExtent(value) {
+  return Boolean(value && (
+    Object.prototype.hasOwnProperty.call(value, 'from')
+      || Object.prototype.hasOwnProperty.call(value, 'to')
+      || Object.prototype.hasOwnProperty.call(value, 'min')
+      || Object.prototype.hasOwnProperty.call(value, 'max')
+  ));
+}
+
+function timeAxis(step, extentOrOver = {}, maybeOver) {
+  const hasExtent = maybeOver !== undefined || looksLikeTimeExtent(extentOrOver);
+  const extent = hasExtent ? extentOrOver : null;
+  const over = hasExtent ? (maybeOver || {}) : extentOrOver;
   const fmt = step <= 5 * 60 * 1000 ? 'HH:mm' : step <= 60 * 60 * 1000 ? 'HH:mm' : 'MM-DD HH:mm';
+  const bounds = timeAxisBounds(extent);
   return {
     type: 'time',
     axisLine: { lineStyle: { color: SPLIT_COLOR } },
     axisTick: { show: false },
-    axisLabel: { color: AXIS_COLOR, fontFamily: MONO, fontSize: 11, formatter: (v) => dayjs(v).format(fmt) },
+    minInterval: step,
+    splitNumber: timeAxisSplitNumber(bounds),
+    axisLabel: { color: AXIS_COLOR, fontFamily: MONO, fontSize: 11, hideOverlap: true, formatter: (v) => dayjs(v).format(fmt) },
     splitLine: { show: false },
+    ...bounds,
     ...over,
   };
 }
@@ -92,7 +133,7 @@ function tracePointColor(trace) {
   return trace.errorCount > 0 || trace.status === 'error' ? status.error : status.ok;
 }
 
-export function buildTraceDistributionCharts(traces) {
+export function buildTraceDistributionCharts(traces, timeExtent) {
   const durations = traces.map((trace) => durationMs(trace.durationNs));
   const maxDuration = Math.max(1, ...durations);
   const minDuration = Math.min(...durations, 0);
@@ -125,7 +166,7 @@ export function buildTraceDistributionCharts(traces) {
         ].join('<br/>');
       },
     }),
-    xAxis: timeAxis(60 * 1000),
+    xAxis: timeAxis(pickTimeStep(timeExtent?.from, timeExtent?.to), timeExtent),
     yAxis: valueAxis('ms', {
       min: 0,
       axisLabel: { color: AXIS_COLOR, fontFamily: MONO, fontSize: 11, formatter: (v) => formatDurationMs(v) },
@@ -217,14 +258,14 @@ export function buildTraceDistributionCharts(traces) {
   return { scatter, histogram };
 }
 
-export function buildThroughputChart(series, step) {
+export function buildThroughputChart(series, step, timeExtent) {
   return {
     grid: grid(),
     tooltip: tooltipBox({
       trigger: 'axis',
       valueFormatter: (v) => `${(+v).toFixed(1)} req/s`,
     }),
-    xAxis: timeAxis(step),
+    xAxis: timeAxis(step, timeExtent),
     yAxis: valueAxis('req/s'),
     series: [
       {
@@ -241,11 +282,11 @@ export function buildThroughputChart(series, step) {
   };
 }
 
-export function buildErrorRateChart(series, step) {
+export function buildErrorRateChart(series, step, timeExtent) {
   return {
     grid: grid(),
     tooltip: tooltipBox({ trigger: 'axis', valueFormatter: (v) => `${(+v).toFixed(2)}%` }),
-    xAxis: timeAxis(step),
+    xAxis: timeAxis(step, timeExtent),
     yAxis: valueAxis('%', { min: 0 }),
     series: [
       {
@@ -281,7 +322,7 @@ export function buildErrorRateChart(series, step) {
   };
 }
 
-export function buildLatencyChart(series, step) {
+export function buildLatencyChart(series, step, timeExtent) {
   const line = (name, key, color, delay) => ({
     name,
     type: 'line',
@@ -305,7 +346,7 @@ export function buildLatencyChart(series, step) {
       textStyle: { color: '#5B6573', fontSize: 11, fontFamily: MONO },
     },
     tooltip: tooltipBox({ trigger: 'axis', valueFormatter: (v) => `${(+v).toFixed(0)} ms` }),
-    xAxis: timeAxis(step),
+    xAxis: timeAxis(step, timeExtent),
     yAxis: valueAxis('ms'),
     series: [
       line('p50', 'p50', percentileColors.p50, 0),
@@ -325,7 +366,13 @@ export function buildEndpointBar(endpoints, metric = 'p99') {
       axisPointer: { type: 'shadow' },
       valueFormatter: (v) => `${(+v).toFixed(metric === 'rps' ? 1 : 0)}${unit}`,
     }),
-    xAxis: { type: 'value', axisLabel: { color: AXIS_COLOR, fontFamily: MONO, fontSize: 11 }, splitLine: { lineStyle: { color: SPLIT_COLOR } } },
+    xAxis: {
+      type: 'value',
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: { show: false },
+      splitLine: { lineStyle: { color: SPLIT_COLOR } },
+    },
     yAxis: {
       type: 'category',
       data: sorted.map((e) => e.operation),
@@ -358,14 +405,14 @@ export function buildEndpointBar(endpoints, metric = 'p99') {
   };
 }
 
-export function buildSeverityHistogram(histogram, step) {
+export function buildSeverityHistogram(histogram, step, timeExtent) {
   const keys = ['INFO', 'DEBUG', 'WARN', 'ERROR', 'FATAL', 'TRACE'].filter((k) =>
     histogram.some((b) => b[k]),
   );
   return {
     grid: grid({ top: 12, bottom: 4 }),
     tooltip: tooltipBox({ trigger: 'axis', axisPointer: { type: 'shadow' } }),
-    xAxis: timeAxis(step, { axisLine: { show: false } }),
+    xAxis: timeAxis(step, timeExtent, { axisLine: { show: false } }),
     yAxis: valueAxis('', { minInterval: 1 }),
     series: keys.map((k) => ({
       name: severityMeta[k].label,

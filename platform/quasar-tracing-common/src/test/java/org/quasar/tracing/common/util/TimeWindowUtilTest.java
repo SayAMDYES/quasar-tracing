@@ -29,4 +29,18 @@ class TimeWindowUtilTest {
         assertThat(TimeWindowUtil.stepSeconds(0L, 24L * 3600_000L)).isEqualTo(900);
         assertThat(TimeWindowUtil.stepSeconds(0L, 48L * 3600_000L)).isEqualTo(3600);
     }
+
+    @Test
+    void capsFutureWindowEndAtNow() {
+        long now = System.currentTimeMillis();
+        long resolved = TimeWindowUtil.resolveTo(now + 3600_000L);
+
+        assertThat(resolved).isLessThan(now + 3600_000L);
+        assertThat(resolved).isGreaterThanOrEqualTo(now);
+    }
+
+    @Test
+    void alignsBucketStartToStepBoundary() {
+        assertThat(TimeWindowUtil.alignBucketStart(125_000L, 60_000L)).isEqualTo(120_000L);
+    }
 }

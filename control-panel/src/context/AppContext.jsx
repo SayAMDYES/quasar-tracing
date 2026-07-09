@@ -43,9 +43,15 @@ function isValidCustomRange(customRange) {
   return customRange && Number.isFinite(customRange.from) && Number.isFinite(customRange.to) && customRange.from < customRange.to;
 }
 
+function normalizeCustomRange(from, to) {
+  const nextRange = { from, to: Math.min(to, Date.now()) };
+  return isValidCustomRange(nextRange) ? nextRange : null;
+}
+
 function resolveRange(key, customRange) {
-  if (key === CUSTOM_RANGE_KEY && isValidCustomRange(customRange)) {
-    return { key: CUSTOM_RANGE_KEY, label: 'Custom', from: customRange.from, to: customRange.to };
+  const nextCustomRange = customRange ? normalizeCustomRange(customRange.from, customRange.to) : null;
+  if (key === CUSTOM_RANGE_KEY && nextCustomRange) {
+    return { key: CUSTOM_RANGE_KEY, label: 'Custom', from: nextCustomRange.from, to: nextCustomRange.to };
   }
   const preset = QUICK_RANGES.find((r) => r.key === key) || QUICK_RANGES[4];
   const to = Date.now();
@@ -71,8 +77,8 @@ export function AppProvider({ children }) {
   };
 
   const setCustomRange = (from, to) => {
-    const nextCustomRange = { from, to };
-    if (!isValidCustomRange(nextCustomRange)) return;
+    const nextCustomRange = normalizeCustomRange(from, to);
+    if (!nextCustomRange) return;
     setCustomRangeState(nextCustomRange);
     setRangeKey(CUSTOM_RANGE_KEY);
     setRange(resolveRange(CUSTOM_RANGE_KEY, nextCustomRange));

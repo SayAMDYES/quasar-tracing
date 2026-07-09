@@ -707,13 +707,14 @@ export default function MetricsPage() {
 
   const charts = useMemo(() => {
     if (!data) return null;
+    const timeExtent = { from: range.from, to: range.to };
     return {
-      throughput: buildThroughputChart(series, data.step),
-      errorRate: buildErrorRateChart(series, data.step),
-      latency: buildLatencyChart(series, data.step),
+      throughput: buildThroughputChart(series, data.step, timeExtent),
+      errorRate: buildErrorRateChart(series, data.step, timeExtent),
+      latency: buildLatencyChart(series, data.step, timeExtent),
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, series, i18n.language]);
+  }, [data, series, range.from, range.to, i18n.language]);
 
   const current = data?.summary?.current ? {
     ...data.summary.current,

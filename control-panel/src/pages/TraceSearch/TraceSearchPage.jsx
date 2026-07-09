@@ -90,9 +90,9 @@ export default function TraceSearchPage() {
   );
   const distributionCharts = useMemo(() => {
     if (!data?.items?.length) return null;
-    return buildTraceDistributionCharts(data.items);
+    return buildTraceDistributionCharts(data.items, { from: range.from, to: range.to });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, i18n.language]);
+  }, [data, range.from, range.to, i18n.language]);
 
   const columns = [
     {

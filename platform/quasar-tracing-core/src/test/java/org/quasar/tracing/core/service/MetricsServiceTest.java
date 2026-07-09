@@ -77,7 +77,7 @@ class MetricsServiceTest {
     }
 
     @Test
-    void emptySeriesYieldsZeroSummaryAndNullCurrent() {
+    void emptySeriesYieldsContinuousZeroBuckets() {
         when(metricMapper.series(any(), any(), any(), any(), any(), any(), any())).thenReturn(List.of());
         when(metricMapper.endpointRed(any(), any(), any(), any(), any(), any())).thenReturn(List.of());
         when(metricMapper.instances(any(), any(), any(), any(), any(), any())).thenReturn(List.of());
@@ -85,10 +85,11 @@ class MetricsServiceTest {
 
         MetricsResponseDTO metrics = service.metrics("web-gateway", null, null, null, 0L, 120_000L);
 
-        assertThat(metrics.getSeries()).isEmpty();
+        assertThat(metrics.getSeries()).hasSize(2);
+        assertThat(metrics.getSeries()).extracting("time").containsExactly(0L, 60_000L);
         assertThat(metrics.getSummary().getRps()).isZero();
         assertThat(metrics.getSummary().getErrorRate()).isZero();
-        assertThat(metrics.getSummary().getCurrent()).isNull();
+        assertThat(metrics.getSummary().getCurrent().getTime()).isEqualTo(60_000L);
     }
 
     private static EndpointRedEntity endpoint(String operation, Long requests) {

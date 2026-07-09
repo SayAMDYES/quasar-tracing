@@ -18,7 +18,7 @@ import CopyableId from '@/components/CopyableId';
 import { useApp } from '@/context/AppContext';
 import useFetch from '@/hooks/useFetch';
 import { fetchOverview } from '@/api';
-import { buildThroughputChart, buildErrorRateChart, buildEndpointBar } from '@/charts/options';
+import { buildThroughputChart, buildErrorRateChart, buildEndpointBar, pickTimeStep } from '@/charts/options';
 import { formatNumber, formatPercent, formatInt, formatTime, formatMs } from '@/utils/format';
 import { brand, status } from '@/theme/tokens';
 
@@ -51,10 +51,11 @@ export default function OverviewPage() {
 
   const charts = useMemo(() => {
     if (!data) return null;
-    const step = (range.to - range.from) / data.series.length;
+    const step = pickTimeStep(range.from, range.to);
+    const timeExtent = { from: range.from, to: range.to };
     return {
-      throughput: buildThroughputChart(data.series, step),
-      errorRate: buildErrorRateChart(data.series, step),
+      throughput: buildThroughputChart(data.series, step, timeExtent),
+      errorRate: buildErrorRateChart(data.series, step, timeExtent),
       endpoints: buildEndpointBar(data.topEndpoints.slice(0, 7), 'p99'),
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

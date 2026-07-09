@@ -35,7 +35,7 @@ class LogServiceTest {
         when(logMapper.countSearch(any())).thenReturn(1L);
         when(logMapper.histogram(any())).thenReturn(List.of(slice(0L, "INFO", 2L), slice(60_000L, "ERROR", 1L)));
 
-        // 2-minute window → 60s buckets → 3 continuous buckets: 0, 60000, 120000
+        // 2-minute window → 60s buckets → 2 continuous buckets: 0, 60000
         LogSearchResultDTO result = service.search("mysql", "t", "s", "production", "quasar", "quasar-ns",
             "mysql-0", "node-1", "pod-uid-1",
             List.of(), null, 0L, 120_000L, null, null);
@@ -58,10 +58,9 @@ class LogServiceTest {
         assertThat(filter.getServiceInstanceId()).isEqualTo("pod-uid-1");
 
         List<Map<String, Object>> histogram = result.getHistogram();
-        assertThat(histogram).hasSize(3);
+        assertThat(histogram).hasSize(2);
         assertThat(histogram.get(0)).containsEntry("time", 0L).containsEntry("INFO", 2L);
         assertThat(histogram.get(1)).containsEntry("time", 60_000L).containsEntry("ERROR", 1L);
-        assertThat(histogram.get(2)).containsEntry("time", 120_000L).doesNotContainKey("ERROR");
     }
 
     private static LogEntity log() {
