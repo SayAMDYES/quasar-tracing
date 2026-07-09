@@ -59,6 +59,18 @@ export const searchLogs = ({ severities, ...params } = {}) =>
     }),
   ).then((d) => ({ ...flattenPage(d.page), histogram: d.histogram }));
 
+export function buildLogStreamUrl({ severities, ...params } = {}) {
+  const query = new URLSearchParams();
+  Object.entries({
+    ...params,
+    severities: severities?.length ? severities.join(',') : undefined,
+  }).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') query.set(key, value);
+  });
+  const qs = query.toString();
+  return qs ? `/api/logs/stream?${qs}` : '/api/logs/stream';
+}
+
 export const fetchServices = (params) => unwrap(client.get('/api/services', { params }));
 export const fetchDependencies = (params) =>
   unwrap(client.get('/api/services/dependencies', { params }));

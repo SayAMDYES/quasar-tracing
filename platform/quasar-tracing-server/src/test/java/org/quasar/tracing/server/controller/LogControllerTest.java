@@ -5,12 +5,15 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
 import org.quasar.tracing.common.api.QTPageDTO;
 import org.quasar.tracing.common.dto.LogRecordDTO;
@@ -67,5 +70,22 @@ class LogControllerTest {
             .andExpect(jsonPath("$.data.histogram[0].ERROR").value(1));
         verify(logService).search(any(), eq("t"), eq("s"), eq("production"), eq("quasar"), any(), any(), any(),
             eq("pod-uid-1"), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void opensLogStream() throws Exception {
+        when(logService.stream(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
+            .thenReturn(List.of());
+
+        mvc.perform(get("/api/logs/stream")
+                .param("service", "mysql")
+                .param("severities", "ERROR")
+                .param("cursor", "30000"))
+            .andExpect(status().isOk())
+            .andExpect(request().asyncStarted())
+            .andExpect(header().string("Content-Type", Matchers.containsString("text/event-stream")));
+
+        verify(logService).stream(eq("mysql"), any(), any(), any(), any(), any(), any(), any(), any(), eq(List.of("ERROR")),
+            any(), eq(30_000L), any());
     }
 }

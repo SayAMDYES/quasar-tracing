@@ -5,8 +5,9 @@
  *
  * @author Quasar
  */
-import { useEffect, useMemo, useState } from 'react';
-import { Table, Select, Input, Card, Typography, Tag } from 'antd';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Button, Table, Select, Input, Card, Typography, Tag, Switch, Space } from 'antd';
+import { ClearOutlined, DisconnectOutlined, PauseCircleOutlined, PlayCircleOutlined } from '@ant-design/icons';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import PageHeader from '@/components/PageHeader';
@@ -18,7 +19,7 @@ import LogDetailDrawer from './LogDetailDrawer';
 import { SeverityTag, ServiceBadge } from '@/components/tags';
 import { useApp } from '@/context/AppContext';
 import useFetch from '@/hooks/useFetch';
-import { searchLogs, fetchFilters } from '@/api';
+import { buildLogStreamUrl, searchLogs, fetchFilters } from '@/api';
 import { buildSeverityHistogram, pickTimeStep } from '@/charts/options';
 import { formatTime, formatInt } from '@/utils/format';
 
@@ -61,6 +62,15 @@ export default function LogSearchPage() {
   });
   const [applied, setApplied] = useState(form);
   const [selected, setSelected] = useState(null);
+  const [liveEnabled, setLiveEnabled] = useState(false);
+  const [livePaused, setLivePaused] = useState(false);
+  const [liveItems, setLiveItems] = useState([]);
+  const [liveStatus, setLiveStatus] = useState('stopped');
+  const [liveCursor, setLiveCursor] = useState(null);
+  const [liveAutoScroll, setLiveAutoScroll] = useState(true);
+  const streamRef = useRef(null);
+  const consoleRef = useRef(null);
+  const liveFilterKeyRef = useRef(null);
 
   useEffect(() => {
     const next = {
@@ -92,6 +102,80 @@ export default function LogSearchPage() {
   );
 
   const apply = () => setApplied(form);
+
+  const liveFilterKey = useMemo(
+    () => JSON.stringify({
+      service: applied.service || '',
+      severities: applied.severities || [],
+      environment: applied.environment || '',
+      namespace: applied.namespace || '',
+      k8sPodName: applied.k8sPodName || '',
+      k8sNodeName: applied.k8sNodeName || '',
+      serviceInstanceId: applied.serviceInstanceId || '',
+      q: applied.q || '',
+      traceId: traceId || '',
+      spanId: spanId || '',
+    }),
+    [applied, traceId, spanId],
+  );
+
+  useEffect(() => {
+    if (!liveEnabled) {
+      liveFilterKeyRef.current = null;
+      return undefined;
+    }
+    if (livePaused) return undefined;
+    const filterChanged = liveFilterKeyRef.current !== liveFilterKey;
+    const cursor = filterChanged ? Date.now() : liveCursor;
+    if (filterChanged) {
+      liveFilterKeyRef.current = liveFilterKey;
+      setLiveItems([]);
+      setLiveCursor(cursor);
+    }
+    const source = new EventSource(buildLogStreamUrl({
+      ...applied,
+      traceId,
+      spanId,
+      cursor,
+      limit: 300,
+    }));
+    streamRef.current = source;
+    setLiveStatus('connecting');
+
+    source.addEventListener('open', () => setLiveStatus('connected'));
+    source.addEventListener('log', (event) => {
+      try {
+        const record = JSON.parse(event.data);
+        if (record?.timestamp) {
+          setLiveCursor((cursor) => Math.max(Number(cursor || 0), Number(record.timestamp)));
+        }
+        setLiveItems((items) => [...items, record].slice(-1000));
+      } catch {
+        setLiveStatus('error');
+      }
+    });
+    source.addEventListener('heartbeat', (event) => {
+      setLiveStatus('connected');
+      const cursor = Number(event.data);
+      if (Number.isFinite(cursor)) {
+        setLiveCursor((value) => Math.max(Number(value || 0), cursor));
+      }
+    });
+    source.addEventListener('error', () => {
+      setLiveStatus('error');
+      source.close();
+    });
+
+    return () => {
+      source.close();
+      if (streamRef.current === source) streamRef.current = null;
+    };
+  }, [liveEnabled, livePaused, liveFilterKey]);
+
+  useEffect(() => {
+    if (!liveAutoScroll || !consoleRef.current) return;
+    consoleRef.current.scrollTop = consoleRef.current.scrollHeight;
+  }, [liveItems, liveAutoScroll]);
 
   const histogramOption = useMemo(() => {
     if (!data?.histogram) return null;
@@ -163,6 +247,14 @@ export default function LogSearchPage() {
   const podOptions = filters?.k8sPodNames?.map((v) => ({ label: v, value: v })) || [];
   const nodeOptions = filters?.k8sNodeNames?.map((v) => ({ label: v, value: v })) || [];
   const instanceOptions = filters?.serviceInstances?.map((v) => ({ label: v, value: v })) || [];
+  const liveStatusLabel = livePaused
+    ? 'livePaused'
+    : {
+      connected: 'liveConnected',
+      connecting: 'liveConnecting',
+      error: 'liveError',
+      stopped: 'liveStopped',
+    }[liveStatus] || 'liveStopped';
 
   return (
     <>
@@ -308,6 +400,71 @@ export default function LogSearchPage() {
           )}
         </div>
       </Toolbar>
+
+      <Card
+        size="small"
+        className="log-live-card"
+        title={t('logs.realtime')}
+        extra={<Text type="secondary">{t(`logs.${liveStatusLabel}`)}</Text>}
+      >
+        <div className="log-live-toolbar">
+          <Space wrap>
+            {!liveEnabled ? (
+              <Button
+                icon={<PlayCircleOutlined />}
+                type="primary"
+                onClick={() => {
+                  setLiveItems([]);
+                  setLiveCursor(Date.now());
+                  setLivePaused(false);
+                  setLiveEnabled(true);
+                }}
+              >
+                {t('logs.startRealtime')}
+              </Button>
+            ) : (
+              <Button
+                icon={<DisconnectOutlined />}
+                onClick={() => {
+                  setLiveEnabled(false);
+                  setLivePaused(false);
+                  setLiveStatus('stopped');
+                }}
+              >
+                {t('logs.stopRealtime')}
+              </Button>
+            )}
+            <Button
+              icon={livePaused ? <PlayCircleOutlined /> : <PauseCircleOutlined />}
+              disabled={!liveEnabled}
+              onClick={() => setLivePaused((value) => !value)}
+            >
+              {livePaused ? t('logs.resumeRealtime') : t('logs.pauseRealtime')}
+            </Button>
+            <Button icon={<ClearOutlined />} onClick={() => setLiveItems([])}>
+              {t('logs.clearRealtime')}
+            </Button>
+            <span className="log-live-autoscroll">
+              <Switch size="small" checked={liveAutoScroll} onChange={setLiveAutoScroll} />
+              <Text type="secondary">{t('logs.autoScroll')}</Text>
+            </span>
+          </Space>
+          <Text type="secondary" className="log-live-hint">{t('logs.realtimeHint')}</Text>
+        </div>
+        <div ref={consoleRef} className="log-live-console">
+          {liveItems.map((item, index) => (
+            <div
+              key={`${item.timestamp}-${item.service}-${item.traceId}-${item.spanId}-${index}`}
+              className={`log-live-row severity-${item.severity || 'UNKNOWN'}`}
+            >
+              <span className="log-live-time">{formatTime(item.timestamp)}</span>
+              <span className="log-live-severity">{item.severity || '-'}</span>
+              <span className="log-live-service">{item.service || '-'}</span>
+              <span className="log-live-body">{item.body || ''}</span>
+            </div>
+          ))}
+        </div>
+      </Card>
 
       <Card size="small" title={t('logs.volumeBySeverity')} style={{ marginBottom: 16 }}>
         <AsyncBoundary loading={loading && !data} error={error} onRetry={refetch} skeleton={<div style={{ height: 150 }} />}>

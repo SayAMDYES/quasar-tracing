@@ -14,6 +14,7 @@ import org.quasar.tracing.clickhouse.entity.LogEntity;
 import org.quasar.tracing.clickhouse.entity.LogHistogramSliceEntity;
 import org.quasar.tracing.clickhouse.mapper.LogMapper;
 import org.quasar.tracing.clickhouse.mapper.LogSearchFilter;
+import org.quasar.tracing.common.dto.LogRecordDTO;
 import org.quasar.tracing.common.dto.LogSearchResultDTO;
 import org.quasar.tracing.core.config.QueryProperties;
 
@@ -61,6 +62,35 @@ class LogServiceTest {
         assertThat(histogram).hasSize(2);
         assertThat(histogram.get(0)).containsEntry("time", 0L).containsEntry("INFO", 2L);
         assertThat(histogram.get(1)).containsEntry("time", 60_000L).containsEntry("ERROR", 1L);
+    }
+
+    @Test
+    void streamsLogsAfterCursorOldestFirst() {
+        LogEntity first = log();
+        first.setTimestamp(30_001L);
+        first.setBody("first");
+        LogEntity second = log();
+        second.setTimestamp(30_002L);
+        second.setBody("second");
+        when(logMapper.stream(any())).thenReturn(List.of(first, second));
+
+        List<LogRecordDTO> records = service.stream("mysql", "t", "s", "production", "quasar", "quasar-ns",
+            "mysql-0", "node-1", "pod-uid-1", List.of("ERROR"), "deadlock", 30_000L, 300);
+
+        assertThat(records).extracting(LogRecordDTO::getBody).containsExactly("first", "second");
+        assertThat(records).extracting(LogRecordDTO::getTimestamp).containsExactly(30_001L, 30_002L);
+        ArgumentCaptor<LogSearchFilter> captor = ArgumentCaptor.forClass(LogSearchFilter.class);
+        verify(logMapper).stream(captor.capture());
+        LogSearchFilter filter = captor.getValue();
+        assertThat(filter.getFrom()).isEqualTo(30_000L);
+        assertThat(filter.getCursor()).isEqualTo(30_000L);
+        assertThat(filter.getTo()).isGreaterThanOrEqualTo(30_000L);
+        assertThat(filter.getLimit()).isEqualTo(300);
+        assertThat(filter.getService()).isEqualTo("mysql");
+        assertThat(filter.getTraceId()).isEqualTo("t");
+        assertThat(filter.getSpanId()).isEqualTo("s");
+        assertThat(filter.getSeverities()).containsExactly("ERROR");
+        assertThat(filter.getQ()).isEqualTo("deadlock");
     }
 
     private static LogEntity log() {

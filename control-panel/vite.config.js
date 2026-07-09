@@ -14,6 +14,11 @@ export default defineConfig({
     port: 5173,
     open: true,
     proxy: {
+      '/api/logs/stream': {
+        target: 'http://127.0.0.1:8080',
+        changeOrigin: true,
+        timeout: 0,
+      },
       '/api': { target: 'http://127.0.0.1:8080', changeOrigin: true },
     },
   },

@@ -45,7 +45,7 @@ public class LogService {
 
         LogSearchFilter filter = new LogSearchFilter(service, traceId, spanId,
             environment, namespace, k8sNamespace, k8sPodName, k8sNodeName, serviceInstanceId, severities, q,
-            fromMs, toMs, effectiveLimit, effectiveOffset, stepSec);
+            fromMs, toMs, null, effectiveLimit, effectiveOffset, stepSec);
 
         List<LogEntity> rows = logMapper.search(filter);
         List<LogRecordDTO> records = new ArrayList<>(rows.size());
@@ -64,6 +64,29 @@ public class LogService {
             logMapper.histogram(filter), fromMs, toMs, TimeWindowUtil.stepMs(fromMs, toMs));
 
         return new LogSearchResultDTO(page, histogram);
+    }
+
+    public List<LogRecordDTO> stream(String service, String traceId, String spanId,
+            String environment, String namespace, String k8sNamespace, String k8sPodName, String k8sNodeName,
+            String serviceInstanceId, List<String> severities, String q, Long cursor, Integer limit) {
+        Long cursorMs = cursor == null ? System.currentTimeMillis() : cursor;
+        Long toMs = System.currentTimeMillis();
+        Integer effectiveLimit = query.clamp(limit, query.defaultLogLimit());
+        LogSearchFilter filter = new LogSearchFilter(service, traceId, spanId,
+            environment, namespace, k8sNamespace, k8sPodName, k8sNodeName, serviceInstanceId, severities, q,
+            cursorMs, toMs, cursorMs, effectiveLimit, 0, null);
+
+        List<LogEntity> rows = logMapper.stream(filter);
+        List<LogRecordDTO> records = new ArrayList<>(rows.size());
+        for (int i = 0; i < rows.size(); i++) {
+            LogEntity e = rows.get(i);
+            records.add(new LogRecordDTO(e.getTimestamp() + "-" + i,
+                e.getTimestamp(), e.getTraceId(), e.getSpanId(), e.getService(),
+                e.getSeverity(), e.getBody(), e.getEnvironment(), e.getHost(),
+                e.getServiceInstanceId(), e.getK8sNamespace(), e.getK8sPodName(),
+                e.getK8sPodUid(), e.getK8sNodeName(), e.getResourceAttributes()));
+        }
+        return records;
     }
 
     /**

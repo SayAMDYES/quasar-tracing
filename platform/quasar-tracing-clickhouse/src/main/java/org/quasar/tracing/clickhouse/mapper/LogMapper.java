@@ -31,6 +31,14 @@ public interface LogMapper {
     List<LogEntity> search(LogSearchFilter filter);
 
     /**
+     * Reads matching logs newer than the stream cursor, oldest first.
+     *
+     * @param filter normalized search inputs
+     * @return new logs after the cursor
+     */
+    List<LogEntity> stream(LogSearchFilter filter);
+
+    /**
      * @param filter the same filter passed to {@link #search}
      * @return total matching logs (ignoring limit/offset)
      */

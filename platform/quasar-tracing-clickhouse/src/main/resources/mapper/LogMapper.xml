@@ -87,6 +87,28 @@
         LIMIT ${limit} OFFSET ${offset}
     </select>
 
+    <select id="stream" resultMap="logResultMap">
+        SELECT
+            toUnixTimestamp64Milli(Timestamp) AS timestamp,
+            TraceId      AS traceId,
+            SpanId       AS spanId,
+            SeverityText AS severity,
+            ServiceName  AS service,
+            Body         AS body,
+            ResourceAttributes AS resourceAttributes
+        FROM quasar_tracing.logs
+        <where>
+            <include refid="logWhere"/>
+            <if test="cursor != null">
+                AND toUnixTimestamp64Milli(Timestamp) &gt; #{cursor}
+            </if>
+        </where>
+        ORDER BY Timestamp ASC, ServiceName, TraceId, SpanId
+        <!-- ${} because the JDBC driver's SQL parser rejects ? inside LIMIT;
+             value is service-clamped, never raw user input. -->
+        LIMIT ${limit}
+    </select>
+
     <select id="countSearch" resultType="java.lang.Long">
         SELECT count()
         FROM quasar_tracing.logs

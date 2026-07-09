@@ -125,6 +125,89 @@ body {
   min-width: 0;
   font-size: 12px;
 }
+
+.log-live-card {
+  margin-bottom: 16px;
+}
+
+.log-live-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.log-live-autoscroll {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.log-live-hint {
+  font-size: 12px;
+}
+
+.log-live-console {
+  height: 320px;
+  overflow: auto;
+  background: #101418;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  color: #d7dde5;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.log-live-row {
+  display: grid;
+  grid-template-columns: 92px 64px 180px minmax(0, 1fr);
+  gap: 10px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.log-live-time,
+.log-live-severity,
+.log-live-service {
+  color: #94a3b8;
+}
+
+.log-live-body {
+  color: #e2e8f0;
+}
+
+.log-live-row.severity-ERROR .log-live-severity,
+.log-live-row.severity-FATAL .log-live-severity {
+  color: #f87171;
+}
+
+.log-live-row.severity-WARN .log-live-severity {
+  color: #fbbf24;
+}
+
+@media (max-width: 720px) {
+  .log-live-toolbar,
+  .log-live-toolbar .ant-space {
+    width: 100%;
+  }
+
+  .log-live-toolbar .ant-btn {
+    min-width: 0;
+  }
+
+  .log-live-row {
+    grid-template-columns: 84px 58px minmax(0, 1fr);
+  }
+
+  .log-live-service {
+    display: none;
+  }
+}
+
 .uppercase-label {
   text-transform: uppercase;
   letter-spacing: 0.06em;

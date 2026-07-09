@@ -58,6 +58,9 @@ public class LogSearchFilter {
     /** Window end, epoch milliseconds. */
     private Long to;
 
+    /** Cursor timestamp for forward stream reads, epoch milliseconds. */
+    private Long cursor;
+
     private Integer limit;
 
     private Integer offset;
