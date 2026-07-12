@@ -12,10 +12,10 @@ RUN mvn -q -B clean package -DskipTests
 FROM eclipse-temurin:17-jre AS runtime
 WORKDIR /app
 
-# Pulls the latest agent for convenience. For reproducible production images, pin a
-# release instead, e.g.:
-#   ADD https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/download/v2.11.0/opentelemetry-javaagent.jar /app/opentelemetry-javaagent.jar
-ADD https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/latest/download/opentelemetry-javaagent.jar /app/opentelemetry-javaagent.jar
+# Keep the agent version pinned so this sample is reproducible and matches the
+# instrumentation BOM used by the compile-only annotation dependencies.
+ARG OTEL_JAVA_AGENT_VERSION=2.11.0
+ADD https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/download/v${OTEL_JAVA_AGENT_VERSION}/opentelemetry-javaagent.jar /app/opentelemetry-javaagent.jar
 
 COPY --from=build /workspace/target/springboot-otel-sample.jar /app/app.jar
 

@@ -66,9 +66,9 @@ springboot-otel-sample  (this app, :8090, OTel Java Agent)
 ```
 example/springboot/
 ├── pom.xml                 Spring Boot 3.5.7 · Java 17 · OTel instrumentation BOM
-├── Dockerfile              multi-stage build; downloads the agent into the image
+├── Dockerfile              multi-stage build; downloads the pinned agent into the image
 ├── docker-compose.yml      runs the app on deploy/simple's network
-├── run.sh / run.ps1        host run helpers (download agent → build → java -javaagent)
+├── run.sh / run.ps1        host run helpers (download pinned agent → build → java -javaagent)
 └── src/main/
     ├── java/org/quasar/tracing/example/
     │   ├── OtelSampleApplication.java   no tracing code — the agent does it all
@@ -106,7 +106,8 @@ java \
 - **Set resource attributes** — `service.namespace`, `service.version`, and especially
   `deployment.environment.name` — so you can separate prod/staging/local and correlate a regression
   to a release.
-- **Pin the agent version** for reproducible builds; the `Dockerfile` shows how. Download it
+- **Pin the agent version** for reproducible builds. This example uses `2.11.0`, matching the
+  instrumentation BOM used by the compile-only annotation dependencies. Download other versions
   from the [releases page](https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases).
 - The agent is **fully external** to the build — it is never a Maven dependency and never
   committed. `run.sh` / `run.ps1` download it on first run.
@@ -235,7 +236,7 @@ endpoint changes.
 ./run.ps1
 ```
 
-These download the agent (first run), `mvn package`, and launch with the agent attached.
+These download the pinned agent (first run), `mvn package`, and launch with the agent attached.
 
 ### Option B — Docker, on the stack network (gRPC → `otel-collector:4317`)
 

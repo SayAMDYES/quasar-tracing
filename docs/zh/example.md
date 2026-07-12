@@ -64,9 +64,9 @@ springboot-otel-sample  (本应用，:8090，OTel Java Agent)
 ```
 example/springboot/
 ├── pom.xml                 Spring Boot 3.5.7 · Java 17 · OTel instrumentation BOM
-├── Dockerfile              多阶段构建；把 agent 下载进镜像
+├── Dockerfile              多阶段构建；把固定版本 agent 下载进镜像
 ├── docker-compose.yml      让应用运行在 deploy/simple 的网络上
-├── run.sh / run.ps1        宿主机运行脚本（下载 agent → 构建 → java -javaagent）
+├── run.sh / run.ps1        宿主机运行脚本（下载固定版本 agent → 构建 → java -javaagent）
 └── src/main/
     ├── java/org/quasar/tracing/example/
     │   ├── OtelSampleApplication.java   无埋点代码 —— 全部由 agent 完成
@@ -103,7 +103,8 @@ java \
   会得到 `unknown_service:java`。
 - **设置资源属性** —— `service.namespace`、`service.version`，尤其是
   `deployment.environment.name` —— 以便区分 prod/staging/local，并把回归问题关联到具体发布版本。
-- **固定 agent 版本**以保证构建可复现；`Dockerfile` 中给出了写法。从
+- **固定 agent 版本**以保证构建可复现。本示例使用 `2.11.0`，与编译期注解依赖使用的
+  instrumentation BOM 保持一致。其他版本可从
   [releases 页面](https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases)
   下载。
 - agent **完全独立于构建** —— 它绝不是 Maven 依赖，也不入库。`run.sh` / `run.ps1` 会在首次
@@ -228,7 +229,7 @@ public String placeOrder(@SpanAttribute("order.sku") String sku,   // 捕获参�
 ./run.ps1
 ```
 
-脚本会（首次）下载 agent、执行 `mvn package`，并在挂载 agent 的情况下启动应用。
+脚本会（首次）下载固定版本 agent、执行 `mvn package`，并在挂载 agent 的情况下启动应用。
 
 ### 方式 B —— Docker，运行在栈网络上（gRPC → `otel-collector:4317`）
 

@@ -4,11 +4,12 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+AGENT_VERSION="2.11.0"
 AGENT="opentelemetry-javaagent.jar"
 if [ ! -f "$AGENT" ]; then
-  echo "Downloading the OpenTelemetry Java Agent (latest)..."
+  echo "Downloading the OpenTelemetry Java Agent ($AGENT_VERSION)..."
   curl -sSfL -o "$AGENT" \
-    https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/latest/download/opentelemetry-javaagent.jar
+    "https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/download/v$AGENT_VERSION/opentelemetry-javaagent.jar"
 fi
 
 mvn -q -DskipTests package

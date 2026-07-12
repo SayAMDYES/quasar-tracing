@@ -3,11 +3,12 @@
 $ErrorActionPreference = 'Stop'
 Set-Location -Path $PSScriptRoot
 
+$agentVersion = '2.11.0'
 $agent = 'opentelemetry-javaagent.jar'
 if (-not (Test-Path $agent)) {
-    Write-Host 'Downloading the OpenTelemetry Java Agent (latest)...'
+    Write-Host "Downloading the OpenTelemetry Java Agent ($agentVersion)..."
     Invoke-WebRequest `
-        -Uri 'https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/latest/download/opentelemetry-javaagent.jar' `
+        -Uri "https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/download/v$agentVersion/opentelemetry-javaagent.jar" `
         -OutFile $agent
 }
 
