@@ -12,7 +12,7 @@ export const antdTheme = {
   algorithm: theme.defaultAlgorithm,
   token: {
     colorPrimary: brand.primary,
-    colorInfo: brand.primary,
+    colorInfo: status.info,
     colorSuccess: status.ok,
     colorWarning: status.warn,
     colorError: status.error,

@@ -5,7 +5,7 @@
  * @author Quasar
  */
 import { useEffect, useMemo, useState } from 'react';
-import { Card, Col, Input, InputNumber, Row, Select, Space, Table, Typography } from 'antd';
+import { Button, Card, Col, Collapse, Input, InputNumber, Row, Select, Space, Table, Tag, Typography } from 'antd';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import PageHeader from '@/components/PageHeader';
@@ -23,6 +23,20 @@ import { status as statusColors } from '@/theme/tokens';
 
 const { Text } = Typography;
 
+const DEFAULT_FILTERS = {
+  service: undefined,
+  operation: undefined,
+  environment: undefined,
+  namespace: undefined,
+  k8sPodName: undefined,
+  k8sNodeName: undefined,
+  serviceInstanceId: undefined,
+  status: 'all',
+  minDurationMs: undefined,
+  maxDurationMs: undefined,
+  q: '',
+};
+
 function roundDurationFilter(value) {
   if (value == null) return undefined;
   if (value < 10) return Number(value.toFixed(2));
@@ -34,11 +48,42 @@ function MetadataCell({ value }) {
   return value ? <span className="mono table-cell-strong" title={value}>{value}</span> : <span className="muted">—</span>;
 }
 
+function isNestedInteractiveTarget(event) {
+  return event.target !== event.currentTarget;
+}
+
+function compactFilters(filters) {
+  return {
+    ...filters,
+    q: filters.q?.trim() || '',
+    service: filters.service || undefined,
+    operation: filters.operation || undefined,
+    environment: filters.environment || undefined,
+    namespace: filters.namespace || undefined,
+    k8sPodName: filters.k8sPodName || undefined,
+    k8sNodeName: filters.k8sNodeName || undefined,
+    serviceInstanceId: filters.serviceInstanceId || undefined,
+    status: filters.status || 'all',
+    minDurationMs: filters.minDurationMs ?? undefined,
+    maxDurationMs: filters.maxDurationMs ?? undefined,
+  };
+}
+
+function filtersToSearchParams(filters) {
+  const compacted = compactFilters(filters);
+  const next = new URLSearchParams();
+  Object.entries(compacted).forEach(([key, value]) => {
+    if (value === undefined || value === '' || (key === 'status' && value === 'all')) return;
+    next.set(key, String(value));
+  });
+  return next;
+}
+
 export default function TraceSearchPage() {
   const { range, autoRefreshRevision } = useApp();
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const urlFilters = useMemo(
     () => ({
       service: searchParams.get('service') || undefined,
@@ -56,14 +101,13 @@ export default function TraceSearchPage() {
     [searchParams],
   );
 
-  const [form, setForm] = useState({
-    ...urlFilters,
-  });
+  const [form, setForm] = useState({ ...DEFAULT_FILTERS, ...urlFilters });
   const [applied, setApplied] = useState(form);
 
   useEffect(() => {
-    setForm((f) => ({ ...f, ...urlFilters }));
-    setApplied((f) => ({ ...f, ...urlFilters }));
+    const next = { ...DEFAULT_FILTERS, ...urlFilters };
+    setForm((f) => ({ ...f, ...next }));
+    setApplied((f) => ({ ...f, ...next }));
   }, [urlFilters]);
 
   const { data: filters } = useFetch(fetchFilters, []);
@@ -73,7 +117,16 @@ export default function TraceSearchPage() {
     { backgroundKey: autoRefreshRevision },
   );
 
-  const apply = () => setApplied(form);
+  const apply = () => {
+    const next = compactFilters(form);
+    setApplied(next);
+    setSearchParams(filtersToSearchParams(next));
+  };
+  const resetFilters = () => {
+    setForm(DEFAULT_FILTERS);
+    setApplied(DEFAULT_FILTERS);
+    setSearchParams(new URLSearchParams());
+  };
   const applyDurationRange = (bucket) => {
     if (!bucket) return;
     const next = {
@@ -81,8 +134,10 @@ export default function TraceSearchPage() {
       minDurationMs: roundDurationFilter(bucket.start),
       maxDurationMs: roundDurationFilter(bucket.end),
     };
+    const compacted = compactFilters(next);
     setForm(next);
-    setApplied(next);
+    setApplied(compacted);
+    setSearchParams(filtersToSearchParams(compacted));
   };
   const maxNs = useMemo(
     () => (data?.items?.length ? Math.max(...data.items.map((it) => it.durationNs)) : 1),
@@ -195,6 +250,20 @@ export default function TraceSearchPage() {
   const podOptions = filters?.k8sPodNames?.map((v) => ({ label: v, value: v })) || [];
   const nodeOptions = filters?.k8sNodeNames?.map((v) => ({ label: v, value: v })) || [];
   const instanceOptions = filters?.serviceInstances?.map((v) => ({ label: v, value: v })) || [];
+  const activeFilterCount = [
+    applied.q,
+    applied.service,
+    applied.operation,
+    applied.environment,
+    applied.status && applied.status !== 'all' ? applied.status : undefined,
+    applied.namespace,
+    applied.k8sPodName,
+    applied.k8sNodeName,
+    applied.serviceInstanceId,
+    applied.minDurationMs,
+    applied.maxDurationMs,
+  ].filter((v) => v !== undefined && v !== null && v !== '').length;
+  const hasDraftChanges = JSON.stringify(compactFilters(form)) !== JSON.stringify(compactFilters(applied));
 
   return (
     <>
@@ -204,158 +273,157 @@ export default function TraceSearchPage() {
         style={{ marginBottom: 16 }}
         className="query-toolbar"
       >
-        <div className="query-filter-group">
-          <div className="query-filter-field is-wide">
-            <Text className="query-filter-label">{t('traceSearch.searchPlaceholder')}</Text>
-            <Input.Search
-              allowClear
-              placeholder={t('traceSearch.searchPlaceholder')}
-              value={form.q}
-              onChange={(e) => setForm((f) => ({ ...f, q: e.target.value }))}
-              onSearch={apply}
-            />
-          </div>
-          <div className="query-filter-field">
-            <Text className="query-filter-label">{t('traceSearch.service')}</Text>
-            <Select
-              allowClear
-              showSearch
-              placeholder={t('traceSearch.service')}
-              options={serviceOptions}
-              value={form.service}
-              onChange={(v) => {
-                setForm((f) => ({ ...f, service: v }));
-                setApplied((f) => ({ ...f, service: v }));
-              }}
-            />
-          </div>
-          <div className="query-filter-field is-wide">
-            <Text className="query-filter-label">{t('traceSearch.operation')}</Text>
-            <Select
-              allowClear
-              showSearch
-              placeholder={t('traceSearch.operation')}
-              options={opOptions}
-              value={form.operation}
-              onChange={(v) => {
-                setForm((f) => ({ ...f, operation: v }));
-                setApplied((f) => ({ ...f, operation: v }));
-              }}
-            />
-          </div>
-          <div className="query-filter-field">
-            <Text className="query-filter-label">{t('traceSearch.environment')}</Text>
-            <Select
-              allowClear
-              showSearch
-              placeholder={t('traceSearch.environment')}
-              options={environmentOptions}
-              value={form.environment}
-              onChange={(v) => {
-                setForm((f) => ({ ...f, environment: v }));
-                setApplied((f) => ({ ...f, environment: v }));
-              }}
-            />
-          </div>
-          <div className="query-filter-field">
-            <Text className="query-filter-label">{t('traceSearch.colStatus')}</Text>
-            <Select
-              value={form.status}
-              options={[
-                { label: t('traceSearch.statusAll'), value: 'all' },
-                { label: t('traceSearch.statusOk'), value: 'ok' },
-                { label: t('traceSearch.statusErrors'), value: 'error' },
-              ]}
-              onChange={(v) => {
-                setForm((f) => ({ ...f, status: v }));
-                setApplied((f) => ({ ...f, status: v }));
-              }}
-            />
-          </div>
-          <div className="query-filter-field">
-            <Text className="query-filter-label">{t('traceSearch.namespace')}</Text>
-            <Select
-              allowClear
-              showSearch
-              placeholder={t('traceSearch.namespace')}
-              options={namespaceOptions}
-              value={form.namespace}
-              onChange={(v) => {
-                setForm((f) => ({ ...f, namespace: v }));
-                setApplied((f) => ({ ...f, namespace: v }));
-              }}
-            />
-          </div>
-          <div className="query-filter-field is-wide">
-            <Text className="query-filter-label">{t('traceSearch.pod')}</Text>
-            <Select
-              allowClear
-              showSearch
-              placeholder={t('traceSearch.pod')}
-              options={podOptions}
-              value={form.k8sPodName}
-              onChange={(v) => {
-                setForm((f) => ({ ...f, k8sPodName: v }));
-                setApplied((f) => ({ ...f, k8sPodName: v }));
-              }}
-            />
-          </div>
-          <div className="query-filter-field">
-            <Text className="query-filter-label">{t('traceSearch.node')}</Text>
-            <Select
-              allowClear
-              showSearch
-              placeholder={t('traceSearch.node')}
-              options={nodeOptions}
-              value={form.k8sNodeName}
-              onChange={(v) => {
-                setForm((f) => ({ ...f, k8sNodeName: v }));
-                setApplied((f) => ({ ...f, k8sNodeName: v }));
-              }}
-            />
-          </div>
-          <div className="query-filter-field is-wide">
-            <Text className="query-filter-label">{t('traceSearch.instance')}</Text>
-            <Select
-              allowClear
-              showSearch
-              placeholder={t('traceSearch.instance')}
-              options={instanceOptions}
-              value={form.serviceInstanceId}
-              onChange={(v) => {
-                setForm((f) => ({ ...f, serviceInstanceId: v }));
-                setApplied((f) => ({ ...f, serviceInstanceId: v }));
-              }}
-            />
-          </div>
-          <div className="query-filter-field is-compact">
-            <Text className="query-filter-label">{t('traceSearch.min')}</Text>
-            <Space.Compact style={{ width: '100%' }}>
-              <InputNumber
-                placeholder="ms"
-                min={0}
-                value={form.minDurationMs}
-                onChange={(v) => setForm((f) => ({ ...f, minDurationMs: v }))}
-                onPressEnter={apply}
-                style={{ width: 'calc(100% - 38px)' }}
+        <div className="query-filter-panel">
+          <div className="query-filter-group">
+            <div className="query-filter-field is-wide">
+              <Text className="query-filter-label">{t('traceSearch.searchPlaceholder')}</Text>
+              <Input.Search
+                allowClear
+                placeholder={t('traceSearch.searchPlaceholder')}
+                value={form.q}
+                onChange={(e) => setForm((f) => ({ ...f, q: e.target.value }))}
+                onSearch={apply}
               />
-              <Input value="ms" readOnly style={{ width: 38, color: 'var(--text-muted)' }} />
-            </Space.Compact>
-          </div>
-          <div className="query-filter-field is-compact">
-            <Text className="query-filter-label">{t('traceSearch.max')}</Text>
-            <Space.Compact style={{ width: '100%' }}>
-              <InputNumber
-                placeholder="ms"
-                min={0}
-                value={form.maxDurationMs}
-                onChange={(v) => setForm((f) => ({ ...f, maxDurationMs: v }))}
-                onPressEnter={apply}
-                style={{ width: 'calc(100% - 38px)' }}
+            </div>
+            <div className="query-filter-field">
+              <Text className="query-filter-label">{t('traceSearch.service')}</Text>
+              <Select
+                allowClear
+                showSearch
+                placeholder={t('traceSearch.service')}
+                options={serviceOptions}
+                value={form.service}
+                onChange={(v) => setForm((f) => ({ ...f, service: v }))}
               />
-              <Input value="ms" readOnly style={{ width: 38, color: 'var(--text-muted)' }} />
-            </Space.Compact>
+            </div>
+            <div className="query-filter-field">
+              <Text className="query-filter-label">{t('traceSearch.environment')}</Text>
+              <Select
+                allowClear
+                showSearch
+                placeholder={t('traceSearch.environment')}
+                options={environmentOptions}
+                value={form.environment}
+                onChange={(v) => setForm((f) => ({ ...f, environment: v }))}
+              />
+            </div>
+            <div className="query-filter-field">
+              <Text className="query-filter-label">{t('traceSearch.colStatus')}</Text>
+              <Select
+                value={form.status}
+                options={[
+                  { label: t('traceSearch.statusAll'), value: 'all' },
+                  { label: t('traceSearch.statusOk'), value: 'ok' },
+                  { label: t('traceSearch.statusErrors'), value: 'error' },
+                ]}
+                onChange={(v) => setForm((f) => ({ ...f, status: v }))}
+              />
+            </div>
+            <div className="query-filter-actions">
+              {activeFilterCount > 0 && <Tag className="query-filter-chip">{t('common.activeFilters', { count: activeFilterCount })}</Tag>}
+              {hasDraftChanges && <Tag>{t('common.unappliedChanges')}</Tag>}
+              <Button type="primary" onClick={apply}>{t('common.apply')}</Button>
+              <Button onClick={resetFilters}>{t('common.reset')}</Button>
+            </div>
           </div>
+          <Collapse
+            ghost
+            size="small"
+            className="query-advanced"
+            items={[
+              {
+                key: 'advanced',
+                label: t('common.advancedFilters'),
+                children: (
+                  <div className="query-filter-group query-filter-group-advanced">
+                    <div className="query-filter-field is-wide">
+                      <Text className="query-filter-label">{t('traceSearch.operation')}</Text>
+                      <Select
+                        allowClear
+                        showSearch
+                        placeholder={t('traceSearch.operation')}
+                        options={opOptions}
+                        value={form.operation}
+                        onChange={(v) => setForm((f) => ({ ...f, operation: v }))}
+                      />
+                    </div>
+                    <div className="query-filter-field">
+                      <Text className="query-filter-label">{t('traceSearch.namespace')}</Text>
+                      <Select
+                        allowClear
+                        showSearch
+                        placeholder={t('traceSearch.namespace')}
+                        options={namespaceOptions}
+                        value={form.namespace}
+                        onChange={(v) => setForm((f) => ({ ...f, namespace: v }))}
+                      />
+                    </div>
+                    <div className="query-filter-field is-wide">
+                      <Text className="query-filter-label">{t('traceSearch.pod')}</Text>
+                      <Select
+                        allowClear
+                        showSearch
+                        placeholder={t('traceSearch.pod')}
+                        options={podOptions}
+                        value={form.k8sPodName}
+                        onChange={(v) => setForm((f) => ({ ...f, k8sPodName: v }))}
+                      />
+                    </div>
+                    <div className="query-filter-field">
+                      <Text className="query-filter-label">{t('traceSearch.node')}</Text>
+                      <Select
+                        allowClear
+                        showSearch
+                        placeholder={t('traceSearch.node')}
+                        options={nodeOptions}
+                        value={form.k8sNodeName}
+                        onChange={(v) => setForm((f) => ({ ...f, k8sNodeName: v }))}
+                      />
+                    </div>
+                    <div className="query-filter-field is-wide">
+                      <Text className="query-filter-label">{t('traceSearch.instance')}</Text>
+                      <Select
+                        allowClear
+                        showSearch
+                        placeholder={t('traceSearch.instance')}
+                        options={instanceOptions}
+                        value={form.serviceInstanceId}
+                        onChange={(v) => setForm((f) => ({ ...f, serviceInstanceId: v }))}
+                      />
+                    </div>
+                    <div className="query-filter-field is-compact">
+                      <Text className="query-filter-label">{t('traceSearch.min')}</Text>
+                      <Space.Compact style={{ width: '100%' }}>
+                        <InputNumber
+                          placeholder="ms"
+                          min={0}
+                          value={form.minDurationMs}
+                          onChange={(v) => setForm((f) => ({ ...f, minDurationMs: v }))}
+                          onPressEnter={apply}
+                          style={{ width: 'calc(100% - 38px)' }}
+                        />
+                        <Input value="ms" readOnly style={{ width: 38, color: 'var(--text-muted)' }} />
+                      </Space.Compact>
+                    </div>
+                    <div className="query-filter-field is-compact">
+                      <Text className="query-filter-label">{t('traceSearch.max')}</Text>
+                      <Space.Compact style={{ width: '100%' }}>
+                        <InputNumber
+                          placeholder="ms"
+                          min={0}
+                          value={form.maxDurationMs}
+                          onChange={(v) => setForm((f) => ({ ...f, maxDurationMs: v }))}
+                          onPressEnter={apply}
+                          style={{ width: 'calc(100% - 38px)' }}
+                        />
+                        <Input value="ms" readOnly style={{ width: 38, color: 'var(--text-muted)' }} />
+                      </Space.Compact>
+                    </div>
+                  </div>
+                ),
+              },
+            ]}
+          />
         </div>
       </Toolbar>
 
@@ -409,6 +477,16 @@ export default function TraceSearchPage() {
         scroll={{ x: 1694 }}
         onRow={(r) => ({
           onClick: () => navigate(`/traces/${r.traceId}`),
+          onKeyDown: (e) => {
+            if (isNestedInteractiveTarget(e)) return;
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              navigate(`/traces/${r.traceId}`);
+            }
+          },
+          role: 'button',
+          tabIndex: 0,
+          'aria-label': `${t('traceSearch.colTraceId')} ${r.traceId}`,
           style: { cursor: 'pointer' },
         })}
         locale={{

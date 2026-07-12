@@ -40,6 +40,7 @@ function buildRows(spans, collapsed) {
 }
 
 function WaterfallRow({ row, total, traceStart, selected, collapsed, onSelect, onToggle }) {
+  const { t } = useTranslation();
   const { span, depth, hasChildren } = row;
   const leftPct = ((span.timestamp - traceStart) / total) * 100;
   const widthPct = Math.max(0.6, (span.durationMs / total) * 100);
@@ -48,35 +49,46 @@ function WaterfallRow({ row, total, traceStart, selected, collapsed, onSelect, o
   const labelOnLeft = leftPct + widthPct > 80;
 
   return (
-    <div
-      className={`wf-row${selected ? ' is-selected' : ''}${isError ? ' is-error' : ''}`}
-      onClick={() => onSelect(span)}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onSelect(span);
-        }
-      }}
-    >
+    <div className={`wf-row${selected ? ' is-selected' : ''}${isError ? ' is-error' : ''}`}>
       <div className="wf-label" style={{ paddingLeft: 8 + depth * 14 }}>
-        <span
-          className={`wf-caret${hasChildren ? '' : ' is-leaf'}`}
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggle(span.spanId);
-          }}
+        {hasChildren ? (
+          <button
+            type="button"
+            className="wf-caret"
+            aria-label={collapsed ? t('traceDetail.expandSpan') : t('traceDetail.collapseSpan')}
+            aria-expanded={!collapsed}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggle(span.spanId);
+            }}
+            onKeyDown={(e) => e.stopPropagation()}
+          >
+            {collapsed ? <CaretRightOutlined /> : <CaretDownOutlined />}
+          </button>
+        ) : (
+          <span className="wf-caret is-leaf" aria-hidden="true">
+            <CaretDownOutlined />
+          </span>
+        )}
+        <button
+          type="button"
+          className="wf-select wf-select-label"
+          aria-label={`${span.name} ${span.service}`}
+          onClick={() => onSelect(span)}
         >
-          {collapsed ? <CaretRightOutlined /> : <CaretDownOutlined />}
-        </span>
-        <span className="wf-dot" style={{ background: color }} />
-        <span className="wf-name" title={span.name}>
-          {span.name}
-        </span>
-        <span className="wf-svc mono">{span.service}</span>
+          <span className="wf-dot" style={{ background: color }} />
+          <span className="wf-name" title={span.name}>
+            {span.name}
+          </span>
+          <span className="wf-svc mono">{span.service}</span>
+        </button>
       </div>
-      <div className="wf-track">
+      <button
+        type="button"
+        className="wf-select wf-track"
+        aria-label={`${span.name} ${formatDuration(span.durationNs)}`}
+        onClick={() => onSelect(span)}
+      >
         {[25, 50, 75].map((g) => (
           <span key={g} className="wf-grid" style={{ left: `${g}%` }} />
         ))}
@@ -94,7 +106,7 @@ function WaterfallRow({ row, total, traceStart, selected, collapsed, onSelect, o
         >
           {formatDuration(span.durationNs)}
         </span>
-      </div>
+      </button>
     </div>
   );
 }

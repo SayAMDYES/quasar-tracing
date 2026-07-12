@@ -67,7 +67,7 @@ export default function AppLayout() {
   const effectiveCollapsed = isNarrow || collapsed;
 
   return (
-    <Layout style={{ height: '100vh' }}>
+    <Layout style={{ height: '100dvh' }}>
       <Sider
         theme="light"
         width={232}

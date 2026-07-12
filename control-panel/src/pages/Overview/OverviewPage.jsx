@@ -231,6 +231,15 @@ export default function OverviewPage() {
                     scroll={{ x: 704 }}
                     onRow={(r) => ({
                       onClick: () => navigate(`/services?focus=${r.name}`),
+                      onKeyDown: (e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          navigate(`/services?focus=${r.name}`);
+                        }
+                      },
+                      role: 'button',
+                      tabIndex: 0,
+                      'aria-label': `${t('overview.colService')} ${r.name}`,
                       style: { cursor: 'pointer' },
                     })}
                   />

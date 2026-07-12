@@ -31,13 +31,21 @@ export default function AsyncBoundary({
       <Result
         status="warning"
         title={t('common.loadError')}
-        subTitle={error.message}
+        subTitle={t('common.loadErrorDescription')}
         extra={
-          onRetry && (
-            <Button type="primary" onClick={onRetry}>
-              {t('common.retry')}
-            </Button>
-          )
+          <>
+            {onRetry && (
+              <Button type="primary" onClick={onRetry}>
+                {t('common.retry')}
+              </Button>
+            )}
+            {error.message && (
+              <details className="async-error-detail">
+                <summary>{t('common.technicalDetails')}</summary>
+                <code>{error.message}</code>
+              </details>
+            )}
+          </>
         }
       />
     );

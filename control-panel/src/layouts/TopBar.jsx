@@ -5,8 +5,8 @@
  *
  * @author Quasar
  */
-import { Input, Button, Dropdown, Tooltip } from 'antd';
-import { DownOutlined, ReloadOutlined, SyncOutlined } from '@ant-design/icons';
+import { Input, Button, Dropdown, Popover, Tooltip } from 'antd';
+import { DownOutlined, ReloadOutlined, SearchOutlined, SyncOutlined } from '@ant-design/icons';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -31,6 +31,7 @@ export default function TopBar() {
   } = useApp();
   const [autoRefreshStarting, setAutoRefreshStarting] = useState(false);
   const [autoRefreshAnimating, setAutoRefreshAnimating] = useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const previousAutoRefreshKey = useRef(autoRefreshKey);
   const previousAutoRefreshRevision = useRef(autoRefreshRevision);
   const autoRefreshAnimationTimer = useRef(null);
@@ -75,6 +76,7 @@ export default function TopBar() {
   const onSearch = (value) => {
     const v = value.trim();
     if (!v) return;
+    setMobileSearchOpen(false);
     if (TRACE_ID_RE.test(v)) navigate(`/traces/${v.toLowerCase()}`);
     else navigate(`/traces?q=${encodeURIComponent(v)}`);
   };
@@ -87,6 +89,28 @@ export default function TopBar() {
         onSearch={onSearch}
         className="topbar-search"
       />
+      <Popover
+        trigger="click"
+        placement="bottomLeft"
+        open={mobileSearchOpen}
+        onOpenChange={setMobileSearchOpen}
+        overlayClassName="topbar-mobile-search-popover"
+        content={(
+          <Input.Search
+            autoFocus
+            allowClear
+            placeholder={t('topbar.searchPlaceholder')}
+            onSearch={onSearch}
+            className="topbar-mobile-search-input"
+          />
+        )}
+      >
+        <Button
+          className="topbar-mobile-search-button"
+          aria-label={t('topbar.searchPlaceholder')}
+          icon={<SearchOutlined />}
+        />
+      </Popover>
       <div className="topbar-actions">
         <TimeRangePicker value={rangeKey} range={range} onChange={setRangeKey} onCustomChange={setCustomRange} />
         <Dropdown

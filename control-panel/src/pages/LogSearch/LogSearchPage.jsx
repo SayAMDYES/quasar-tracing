@@ -6,7 +6,7 @@
  * @author Quasar
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Table, Select, Input, Card, Typography, Tag, Switch, Space, Tabs } from 'antd';
+import { Button, Table, Select, Input, Card, Typography, Tag, Switch, Space, Tabs, Collapse } from 'antd';
 import { ClearOutlined, DisconnectOutlined, PauseCircleOutlined, PlayCircleOutlined } from '@ant-design/icons';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -25,8 +25,37 @@ import { formatTime, formatInt } from '@/utils/format';
 
 const { Text } = Typography;
 
+const DEFAULT_FILTERS = {
+  service: undefined,
+  severities: [],
+  environment: undefined,
+  namespace: undefined,
+  k8sPodName: undefined,
+  k8sNodeName: undefined,
+  serviceInstanceId: undefined,
+  q: '',
+};
+
 function MetadataCell({ value }) {
   return value ? <span className="mono table-cell-strong" title={value}>{value}</span> : <span className="muted">—</span>;
+}
+
+function isNestedInteractiveTarget(event) {
+  return event.target !== event.currentTarget;
+}
+
+function compactFilters(filters) {
+  return {
+    ...filters,
+    q: filters.q?.trim() || '',
+    service: filters.service || undefined,
+    severities: filters.severities || [],
+    environment: filters.environment || undefined,
+    namespace: filters.namespace || undefined,
+    k8sPodName: filters.k8sPodName || undefined,
+    k8sNodeName: filters.k8sNodeName || undefined,
+    serviceInstanceId: filters.serviceInstanceId || undefined,
+  };
 }
 
 export default function LogSearchPage() {
@@ -50,16 +79,7 @@ export default function LogSearchPage() {
   const traceId = urlFilters.traceId;
   const spanId = urlFilters.spanId;
 
-  const [form, setForm] = useState({
-    service: urlFilters.service,
-    severities: [],
-    environment: urlFilters.environment,
-    namespace: urlFilters.namespace,
-    k8sPodName: urlFilters.k8sPodName,
-    k8sNodeName: urlFilters.k8sNodeName,
-    serviceInstanceId: urlFilters.serviceInstanceId,
-    q: urlFilters.q,
-  });
+  const [form, setForm] = useState({ ...DEFAULT_FILTERS, ...urlFilters });
   const [applied, setApplied] = useState(form);
   const [selected, setSelected] = useState(null);
   const [liveEnabled, setLiveEnabled] = useState(false);
@@ -76,6 +96,7 @@ export default function LogSearchPage() {
 
   useEffect(() => {
     const next = {
+      ...DEFAULT_FILTERS,
       service: urlFilters.service,
       environment: urlFilters.environment,
       namespace: urlFilters.namespace,
@@ -103,7 +124,11 @@ export default function LogSearchPage() {
     { backgroundKey: autoRefreshRevision },
   );
 
-  const apply = () => setApplied(form);
+  const apply = () => setApplied(compactFilters(form));
+  const resetFilters = () => {
+    setForm(DEFAULT_FILTERS);
+    setApplied(DEFAULT_FILTERS);
+  };
 
   const startRealtime = async () => {
     setLiveSeeding(true);
@@ -291,6 +316,17 @@ export default function LogSearchPage() {
   const podOptions = filters?.k8sPodNames?.map((v) => ({ label: v, value: v })) || [];
   const nodeOptions = filters?.k8sNodeNames?.map((v) => ({ label: v, value: v })) || [];
   const instanceOptions = filters?.serviceInstances?.map((v) => ({ label: v, value: v })) || [];
+  const activeFilterCount = [
+    applied.q,
+    applied.service,
+    applied.severities?.length ? applied.severities.join(',') : undefined,
+    applied.environment,
+    applied.namespace,
+    applied.k8sPodName,
+    applied.k8sNodeName,
+    applied.serviceInstanceId,
+  ].filter((v) => v !== undefined && v !== null && v !== '').length;
+  const hasDraftChanges = JSON.stringify(compactFilters(form)) !== JSON.stringify(compactFilters(applied));
   const liveStatusLabel = livePaused
     ? 'livePaused'
     : {
@@ -305,116 +341,118 @@ export default function LogSearchPage() {
       <PageHeader title={t('logs.title')} description={t('logs.description')} />
 
       <Toolbar className="query-toolbar" style={{ marginBottom: 16 }}>
-        <div className="query-filter-group">
-          <div className="query-filter-field is-xwide">
-            <Text className="query-filter-label">{t('logs.searchPlaceholder')}</Text>
-            <Input.Search
-              allowClear
-              placeholder={t('logs.searchPlaceholder')}
-              value={form.q}
-              onChange={(e) => setForm((f) => ({ ...f, q: e.target.value }))}
-              onSearch={apply}
-            />
+        <div className="query-filter-panel">
+          <div className="query-filter-group">
+            <div className="query-filter-field is-xwide">
+              <Text className="query-filter-label">{t('logs.searchPlaceholder')}</Text>
+              <Input.Search
+                allowClear
+                placeholder={t('logs.searchPlaceholder')}
+                value={form.q}
+                onChange={(e) => setForm((f) => ({ ...f, q: e.target.value }))}
+                onSearch={apply}
+              />
+            </div>
+            <div className="query-filter-field">
+              <Text className="query-filter-label">{t('logs.service')}</Text>
+              <Select
+                allowClear
+                showSearch
+                placeholder={t('logs.service')}
+                options={serviceOptions}
+                value={form.service}
+                onChange={(v) => setForm((f) => ({ ...f, service: v }))}
+              />
+            </div>
+            <div className="query-filter-field is-wide">
+              <Text className="query-filter-label">{t('logs.severity')}</Text>
+              <Select
+                mode="multiple"
+                allowClear
+                placeholder={t('logs.severity')}
+                maxTagCount="responsive"
+                options={severityOptions}
+                value={form.severities}
+                onChange={(v) => setForm((f) => ({ ...f, severities: v }))}
+              />
+            </div>
+            <div className="query-filter-field">
+              <Text className="query-filter-label">{t('logs.environment')}</Text>
+              <Select
+                allowClear
+                showSearch
+                placeholder={t('logs.environment')}
+                options={environmentOptions}
+                value={form.environment}
+                onChange={(v) => setForm((f) => ({ ...f, environment: v }))}
+              />
+            </div>
+            <div className="query-filter-actions">
+              {activeFilterCount > 0 && <Tag className="query-filter-chip">{t('common.activeFilters', { count: activeFilterCount })}</Tag>}
+              {hasDraftChanges && <Tag>{t('common.unappliedChanges')}</Tag>}
+              <Button type="primary" onClick={apply}>{t('common.apply')}</Button>
+              <Button onClick={resetFilters}>{t('common.reset')}</Button>
+            </div>
           </div>
-          <div className="query-filter-field">
-            <Text className="query-filter-label">{t('logs.service')}</Text>
-            <Select
-              allowClear
-              showSearch
-              placeholder={t('logs.service')}
-              options={serviceOptions}
-              value={form.service}
-              onChange={(v) => {
-                setForm((f) => ({ ...f, service: v }));
-                setApplied((f) => ({ ...f, service: v }));
-              }}
-            />
-          </div>
-          <div className="query-filter-field is-wide">
-            <Text className="query-filter-label">{t('logs.severity')}</Text>
-            <Select
-              mode="multiple"
-              allowClear
-              placeholder={t('logs.severity')}
-              maxTagCount="responsive"
-              options={severityOptions}
-              value={form.severities}
-              onChange={(v) => {
-                setForm((f) => ({ ...f, severities: v }));
-                setApplied((f) => ({ ...f, severities: v }));
-              }}
-            />
-          </div>
-          <div className="query-filter-field">
-            <Text className="query-filter-label">{t('logs.environment')}</Text>
-            <Select
-              allowClear
-              showSearch
-              placeholder={t('logs.environment')}
-              options={environmentOptions}
-              value={form.environment}
-              onChange={(v) => {
-                setForm((f) => ({ ...f, environment: v }));
-                setApplied((f) => ({ ...f, environment: v }));
-              }}
-            />
-          </div>
-          <div className="query-filter-field">
-            <Text className="query-filter-label">{t('logs.namespace')}</Text>
-            <Select
-              allowClear
-              showSearch
-              placeholder={t('logs.namespace')}
-              options={namespaceOptions}
-              value={form.namespace}
-              onChange={(v) => {
-                setForm((f) => ({ ...f, namespace: v }));
-                setApplied((f) => ({ ...f, namespace: v }));
-              }}
-            />
-          </div>
-          <div className="query-filter-field is-wide">
-            <Text className="query-filter-label">{t('logs.pod')}</Text>
-            <Select
-              allowClear
-              showSearch
-              placeholder={t('logs.pod')}
-              options={podOptions}
-              value={form.k8sPodName}
-              onChange={(v) => {
-                setForm((f) => ({ ...f, k8sPodName: v }));
-                setApplied((f) => ({ ...f, k8sPodName: v }));
-              }}
-            />
-          </div>
-          <div className="query-filter-field">
-            <Text className="query-filter-label">{t('logs.node')}</Text>
-            <Select
-              allowClear
-              showSearch
-              placeholder={t('logs.node')}
-              options={nodeOptions}
-              value={form.k8sNodeName}
-              onChange={(v) => {
-                setForm((f) => ({ ...f, k8sNodeName: v }));
-                setApplied((f) => ({ ...f, k8sNodeName: v }));
-              }}
-            />
-          </div>
-          <div className="query-filter-field is-wide">
-            <Text className="query-filter-label">{t('logs.instance')}</Text>
-            <Select
-              allowClear
-              showSearch
-              placeholder={t('logs.instance')}
-              options={instanceOptions}
-              value={form.serviceInstanceId}
-              onChange={(v) => {
-                setForm((f) => ({ ...f, serviceInstanceId: v }));
-                setApplied((f) => ({ ...f, serviceInstanceId: v }));
-              }}
-            />
-          </div>
+          <Collapse
+            ghost
+            size="small"
+            className="query-advanced"
+            items={[
+              {
+                key: 'advanced',
+                label: t('common.advancedFilters'),
+                children: (
+                  <div className="query-filter-group query-filter-group-advanced">
+                    <div className="query-filter-field">
+                      <Text className="query-filter-label">{t('logs.namespace')}</Text>
+                      <Select
+                        allowClear
+                        showSearch
+                        placeholder={t('logs.namespace')}
+                        options={namespaceOptions}
+                        value={form.namespace}
+                        onChange={(v) => setForm((f) => ({ ...f, namespace: v }))}
+                      />
+                    </div>
+                    <div className="query-filter-field is-wide">
+                      <Text className="query-filter-label">{t('logs.pod')}</Text>
+                      <Select
+                        allowClear
+                        showSearch
+                        placeholder={t('logs.pod')}
+                        options={podOptions}
+                        value={form.k8sPodName}
+                        onChange={(v) => setForm((f) => ({ ...f, k8sPodName: v }))}
+                      />
+                    </div>
+                    <div className="query-filter-field">
+                      <Text className="query-filter-label">{t('logs.node')}</Text>
+                      <Select
+                        allowClear
+                        showSearch
+                        placeholder={t('logs.node')}
+                        options={nodeOptions}
+                        value={form.k8sNodeName}
+                        onChange={(v) => setForm((f) => ({ ...f, k8sNodeName: v }))}
+                      />
+                    </div>
+                    <div className="query-filter-field is-wide">
+                      <Text className="query-filter-label">{t('logs.instance')}</Text>
+                      <Select
+                        allowClear
+                        showSearch
+                        placeholder={t('logs.instance')}
+                        options={instanceOptions}
+                        value={form.serviceInstanceId}
+                        onChange={(v) => setForm((f) => ({ ...f, serviceInstanceId: v }))}
+                      />
+                    </div>
+                  </div>
+                ),
+              },
+            ]}
+          />
           {traceId && (
             <Tag
               className="query-filter-chip"
@@ -476,7 +514,20 @@ export default function LogSearchPage() {
                   dataSource={data?.items || []}
                   pagination={{ pageSize: 25, showSizeChanger: false, size: 'small' }}
                   scroll={{ x: 1664 }}
-                  onRow={(r) => ({ onClick: () => setSelected(r), style: { cursor: 'pointer' } })}
+                  onRow={(r) => ({
+                    onClick: () => setSelected(r),
+                    onKeyDown: (e) => {
+                      if (isNestedInteractiveTarget(e)) return;
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setSelected(r);
+                      }
+                    },
+                    role: 'button',
+                    tabIndex: 0,
+                    'aria-label': `${t('logs.colMessage')} ${r.body || r.id}`,
+                    style: { cursor: 'pointer' },
+                  })}
                 />
               </>
             ),
