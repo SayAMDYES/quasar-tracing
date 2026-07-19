@@ -4,9 +4,11 @@ import java.util.List;
 import org.quasar.tracing.common.api.QTPageDTO;
 import org.quasar.tracing.common.api.QTResponse;
 import org.quasar.tracing.common.dto.LogRecordDTO;
+import org.quasar.tracing.common.dto.TraceAttributeConditionDTO;
 import org.quasar.tracing.common.dto.TraceDetailDTO;
 import org.quasar.tracing.common.dto.TraceSummaryDTO;
 import org.quasar.tracing.core.service.TraceService;
+import org.quasar.tracing.server.query.TraceAttributeConditionParser;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -28,6 +30,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class TraceController {
 
     private final TraceService traceService;
+    private final TraceAttributeConditionParser traceAttributeConditionParser;
 
     @GetMapping("/traces")
     public QTResponse<QTPageDTO<TraceSummaryDTO>> search(
@@ -45,13 +48,19 @@ public class TraceController {
             @RequestParam(required = false) Long from,
             @RequestParam(required = false) Long to,
             @RequestParam(required = false) String q,
+            @RequestParam(required = false) String attributes,
+            @RequestParam(required = false) String spanService,
+            @RequestParam(required = false) String spanOperation,
+            @RequestParam(required = false) String spanStatus,
             @RequestParam(required = false) String sort,
             @RequestParam(required = false) String order,
             @RequestParam(required = false) Integer limit,
             @RequestParam(required = false) Integer offset) {
+        List<TraceAttributeConditionDTO> attributeConditions = traceAttributeConditionParser.parse(attributes);
         return QTResponse.ok(traceService.search(service, operation, status, environment,
             namespace, k8sNamespace, k8sPodName, k8sNodeName, serviceInstanceId,
-            minDurationMs, maxDurationMs, from, to, q, sort, order, limit, offset));
+            minDurationMs, maxDurationMs, from, to, q, attributeConditions,
+            spanService, spanOperation, spanStatus, sort, order, limit, offset));
     }
 
     @GetMapping("/traces/{traceId}")

@@ -45,6 +45,7 @@ import AsyncBoundary from '@/components/AsyncBoundary';
 import { ServiceBadge } from '@/components/tags';
 import { useApp } from '@/context/AppContext';
 import useFetch from '@/hooks/useFetch';
+import useInvestigationRange from '@/hooks/useInvestigationRange';
 import { fetchMetrics, fetchFilters } from '@/api';
 import {
   buildThroughputChart,
@@ -53,6 +54,7 @@ import {
 } from '@/charts/options';
 import PageHeader from '@/components/PageHeader';
 import { formatInt, formatMs, formatNumber, formatPercent } from '@/utils/format';
+import { buildInvestigationPath } from '@/utils/investigationContext';
 import { brand, neutral, percentileColors, status } from '@/theme/tokens';
 
 const { Text, Title } = Typography;
@@ -389,17 +391,6 @@ function setMetricsSearchParams(setSearchParams, values) {
   });
 }
 
-function buildSearchPath(path, values) {
-  const params = new URLSearchParams();
-  Object.entries(values).forEach(([key, value]) => {
-    if (value != null && value !== '' && value !== 'all') {
-      params.set(key, value);
-    }
-  });
-  const query = params.toString();
-  return query ? `${path}?${query}` : path;
-}
-
 function SectionTitle({ title, icon }) {
   return (
     <div style={{ marginBottom: 12 }}>
@@ -640,10 +631,11 @@ function JvmMetricCard({ jvm }) {
 }
 
 export default function MetricsPage() {
-  const { range, autoRefreshRevision } = useApp();
+  const { autoRefreshRevision } = useApp();
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const effectiveRange = useInvestigationRange(searchParams);
   const [endpointMode, setEndpointMode] = useState('unhealthy');
   const requestedService = searchParams.get('service');
   const requestedEnvironment = searchParams.get('environment') || undefined;
@@ -666,18 +658,27 @@ export default function MetricsPage() {
     setMetricsSearchParams(setSearchParams, { service, serviceInstanceId: 'all', instance: 'all' });
   }, [filters?.appServices, requestedService, service, setSearchParams]);
 
-  const { data, loading, error, refetch } = useFetch(
+  const metricsRequestKey = JSON.stringify([
+    service,
+    requestedEnvironment,
+    requestedNamespace,
+    requestedInstance,
+    effectiveRange.from,
+    effectiveRange.to,
+  ]);
+  const { data: metricsResult, loading, error, refetch } = useFetch(
     () => fetchMetrics({
       service,
       environment: requestedEnvironment,
       namespace: requestedNamespace,
       serviceInstanceId: requestedInstance === 'all' ? undefined : requestedInstance,
-      from: range.from,
-      to: range.to,
-    }),
-    [service, requestedEnvironment, requestedNamespace, requestedInstance, range.from, range.to],
+      from: effectiveRange.from,
+      to: effectiveRange.to,
+    }).then((value) => ({ requestKey: metricsRequestKey, value })),
+    [metricsRequestKey],
     { immediate: Boolean(service), backgroundKey: autoRefreshRevision },
   );
+  const data = metricsResult?.requestKey === metricsRequestKey ? metricsResult.value : null;
 
   const series = useMemo(() => normalizeSeries(data?.series), [data?.series]);
   const endpoints = useMemo(() => normalizeEndpoints(data?.endpoints), [data?.endpoints]);
@@ -701,20 +702,20 @@ export default function MetricsPage() {
     : Boolean(selectedInstance && isJavaInstance(selectedInstance));
 
   useEffect(() => {
-    if (requestedInstance === 'all' || selectedInstanceId === requestedInstance) return;
+    if (!data || loading || requestedInstance === 'all' || selectedInstanceId === requestedInstance) return;
     setMetricsSearchParams(setSearchParams, { serviceInstanceId: 'all', instance: 'all' });
-  }, [requestedInstance, selectedInstanceId, setSearchParams]);
+  }, [data, loading, requestedInstance, selectedInstanceId, setSearchParams]);
 
   const charts = useMemo(() => {
     if (!data) return null;
-    const timeExtent = { from: range.from, to: range.to };
+    const timeExtent = { from: effectiveRange.from, to: effectiveRange.to };
     return {
       throughput: buildThroughputChart(series, data.step, timeExtent),
       errorRate: buildErrorRateChart(series, data.step, timeExtent),
       latency: buildLatencyChart(series, data.step, timeExtent),
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, series, range.from, range.to, i18n.language]);
+  }, [data, series, effectiveRange.from, effectiveRange.to, i18n.language]);
 
   const current = data?.summary?.current ? {
     ...data.summary.current,
@@ -743,6 +744,10 @@ export default function MetricsPage() {
   const defaultService = serviceNames[0];
   const resetDisabled = selectedInstanceId === 'all' && service === defaultService
     && !requestedEnvironment && !requestedNamespace;
+  const openInvestigation = (destination, context) => {
+    const path = buildInvestigationPath(destination, context);
+    if (path) navigate(path);
+  };
   const endpointColumns = [
     {
       title: t('metrics.colOperation'),
@@ -794,26 +799,30 @@ export default function MetricsPage() {
           <Button
             size="small"
             icon={<PartitionOutlined />}
-            onClick={() => navigate(buildSearchPath('/traces', {
+            onClick={() => openInvestigation('traces', {
+              from: effectiveRange.from,
+              to: effectiveRange.to,
               service,
               operation: row.operation,
               environment: requestedEnvironment,
               namespace: requestedNamespace,
-              serviceInstanceId: selectedInstanceId,
-            }))}
+              serviceInstanceId: selectedInstanceId === 'all' ? undefined : selectedInstanceId,
+            })}
           >
             {t('traceDetail.trace')}
           </Button>
           <Button
             size="small"
             icon={<FireOutlined />}
-            onClick={() => navigate(buildSearchPath('/logs', {
+            onClick={() => openInvestigation('logs', {
+              from: effectiveRange.from,
+              to: effectiveRange.to,
               service,
               q: row.operation,
               environment: requestedEnvironment,
               namespace: requestedNamespace,
-              serviceInstanceId: selectedInstanceId,
-            }))}
+              serviceInstanceId: selectedInstanceId === 'all' ? undefined : selectedInstanceId,
+            })}
           >
             {t('nav.logs')}
           </Button>

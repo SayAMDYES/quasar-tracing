@@ -5,7 +5,7 @@
  * @author Quasar
  */
 import { useEffect, useMemo, useState } from 'react';
-import { Card, Tabs, Badge, Space, Typography } from 'antd';
+import { App as AntApp, Card, Tabs, Badge, Space, Typography } from 'antd';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import PageHeader from '@/components/PageHeader';
@@ -19,8 +19,14 @@ import TraceDiagnostics from './TraceDiagnostics';
 import TraceStatistics from './TraceStatistics';
 import useFetch from '@/hooks/useFetch';
 import { fetchTrace, fetchTraceLogs } from '@/api';
+import { useApp } from '@/context/AppContext';
 import { formatDuration, formatTimestamp } from '@/utils/format';
 import { createTraceAnalysis } from '@/utils/traceAnalysis';
+import {
+  buildInvestigationPath,
+  spanInvestigationContext,
+  traceInvestigationWindow,
+} from '@/utils/investigationContext';
 import { status as statusColors } from '@/theme/tokens';
 
 const { Text } = Typography;
@@ -40,7 +46,10 @@ export default function TraceDetailPage() {
   const { traceId } = useParams();
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const { message } = AntApp.useApp();
+  const { range } = useApp();
   const [selected, setSelected] = useState(null);
+  const [spanDrawerOpen, setSpanDrawerOpen] = useState(false);
 
   const {
     data: traceResult,
@@ -65,6 +74,7 @@ export default function TraceDetailPage() {
 
   useEffect(() => {
     setSelected(null);
+    setSpanDrawerOpen(false);
   }, [traceId]);
 
   const hasCurrentTraceResult = traceResult?.traceId === traceId;
@@ -77,8 +87,91 @@ export default function TraceDetailPage() {
     : null;
   const traceStart = analysis.traceStart;
   const traceLoading = (!hasCurrentTraceResult && !currentError) || (loading && !data);
+  const selectSpan = (span) => {
+    setSelected(span);
+    setSpanDrawerOpen(Boolean(span));
+  };
 
   const summary = data?.summary;
+  const investigationWindow = useMemo(
+    () => traceInvestigationWindow(summary) || { from: range.from, to: range.to },
+    [summary, range.from, range.to],
+  );
+  const onFilterResourceAttribute = (key, value) => {
+    const path = buildInvestigationPath('traces', {
+      from: investigationWindow.from,
+      to: investigationWindow.to,
+      attributeConditions: [{ scope: 'resource', key, operator: 'equals', value }],
+    });
+    if (path) {
+      navigate(path);
+    } else {
+      message.warning(t('span.attributeFilterUnsupported'));
+    }
+  };
+  const onFilterSpanAttribute = (key, value) => {
+    const path = buildInvestigationPath('traces', {
+      from: investigationWindow.from,
+      to: investigationWindow.to,
+      attributeConditions: [{ scope: 'span', key, operator: 'equals', value }],
+    });
+    if (path) {
+      navigate(path);
+    } else {
+      message.warning(t('span.attributeFilterUnsupported'));
+    }
+  };
+  const investigationActions = useMemo(() => {
+    const derivedContext = spanInvestigationContext(currentSelected, summary);
+    if (!derivedContext) return null;
+
+    const context = derivedContext.from !== undefined && derivedContext.to !== undefined
+      ? derivedContext
+      : { ...derivedContext, from: range.from, to: range.to };
+    const hasRange = Boolean(buildInvestigationPath('traces', {
+      from: context.from,
+      to: context.to,
+    }));
+    const disabledReason = (missingReason) => (
+      hasRange ? missingReason : t('span.investigation.invalidTimeRange')
+    );
+    const withRequirements = (destination, requirementsMet, missingReason, targetContext = context) => ({
+      path: hasRange && requirementsMet ? buildInvestigationPath(destination, targetContext) : null,
+      disabledReason: hasRange && requirementsMet ? null : disabledReason(missingReason),
+    });
+
+    return {
+      logs: withRequirements(
+        'logs',
+        Boolean(context.traceId && context.spanId),
+        t('span.investigation.missingLogContext'),
+        {
+          from: context.from,
+          to: context.to,
+          traceId: context.traceId,
+          spanId: context.spanId,
+          service: context.service,
+        },
+      ),
+      metrics: withRequirements(
+        'metrics',
+        Boolean(context.service),
+        t('span.investigation.missingService'),
+      ),
+      topology: withRequirements(
+        'services',
+        Boolean(context.service),
+        t('span.investigation.missingService'),
+      ),
+      similarTraces: withRequirements(
+        'traces',
+        Boolean(context.service && context.operation),
+        context.service
+          ? t('span.investigation.missingOperation')
+          : t('span.investigation.missingService'),
+      ),
+    };
+  }, [currentSelected, summary, range.from, range.to, t]);
 
   return (
     <>
@@ -147,19 +240,19 @@ export default function TraceDetailPage() {
                         spans={data.spans}
                         analysis={analysis}
                         selectedId={currentSelected?.spanId}
-                        onSelect={setSelected}
+                        onSelect={selectSpan}
                       />
                     ),
                   },
                   {
                     key: 'diagnostics',
                     label: t('traceDetail.tabDiagnostics'),
-                    children: <TraceDiagnostics analysis={analysis} onSelectSpan={setSelected} />,
+                    children: <TraceDiagnostics analysis={analysis} onSelectSpan={selectSpan} />,
                   },
                   {
                     key: 'statistics',
                     label: t('traceDetail.tabStatistics'),
-                    children: <TraceStatistics analysis={analysis} onSelectSpan={setSelected} />,
+                    children: <TraceStatistics analysis={analysis} onSelectSpan={selectSpan} />,
                   },
                   {
                     key: 'logs',
@@ -179,6 +272,7 @@ export default function TraceDetailPage() {
                         traceId={traceId}
                         logs={logs}
                         selectedSpan={currentSelected}
+                        investigationWindow={investigationWindow}
                       />
                     ),
                   },
@@ -192,8 +286,12 @@ export default function TraceDetailPage() {
       <SpanDetailDrawer
         span={currentSelected}
         traceStart={traceStart}
-        open={!!currentSelected}
-        onClose={() => setSelected(null)}
+        open={Boolean(spanDrawerOpen && currentSelected)}
+        onClose={() => setSpanDrawerOpen(false)}
+        investigationActions={investigationActions}
+        onInvestigationNavigate={navigate}
+        onFilterResourceAttribute={onFilterResourceAttribute}
+        onFilterSpanAttribute={onFilterSpanAttribute}
       />
     </>
   );

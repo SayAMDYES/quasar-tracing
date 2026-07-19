@@ -5,7 +5,7 @@
  * @author Quasar
  */
 import { Drawer, Spin, Table, Space, Typography, Button, Tag, Divider } from 'antd';
-import { LineChartOutlined } from '@ant-design/icons';
+import { FireOutlined, LineChartOutlined, PartitionOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ServiceBadge } from '@/components/tags';
@@ -14,6 +14,7 @@ import { fetchServiceDetail } from '@/api';
 import { formatDuration, formatInt, formatPercent, formatMs } from '@/utils/format';
 import { status as statusColors } from '@/theme/tokens';
 import { resolveServiceVisual } from '@/utils/serviceVisuals';
+import { buildInvestigationPath } from '@/utils/investigationContext';
 
 const { Text } = Typography;
 
@@ -74,6 +75,23 @@ export default function ServicePanel({ name, range, autoRefreshRevision, open, o
     { backgroundKey: autoRefreshRevision },
   );
   const visual = data ? resolveServiceVisual(data) : null;
+  const investigationContext = name ? {
+    from: range.from,
+    to: range.to,
+    service: name,
+  } : null;
+  const tracePath = investigationContext
+    ? buildInvestigationPath('traces', investigationContext)
+    : null;
+  const logPath = investigationContext
+    ? buildInvestigationPath('logs', investigationContext)
+    : null;
+  const metricsPath = investigationContext
+    ? buildInvestigationPath('metrics', investigationContext)
+    : null;
+  const openInvestigation = (path) => {
+    if (path) navigate(path);
+  };
 
   const endpointColumns = [
     { title: t('service.pOperation'), dataIndex: 'operation', ellipsis: true, render: (o) => <span className="mono table-cell-strong">{o}</span> },
@@ -90,15 +108,41 @@ export default function ServicePanel({ name, range, autoRefreshRevision, open, o
 
   return (
     <Drawer
+      rootClassName="investigation-actions-drawer"
       open={open}
       onClose={onClose}
       width={520}
       title={name ? <ServiceBadge name={name} /> : t('metrics.service')}
       extra={
         name && (
-          <Button type="primary" ghost icon={<LineChartOutlined />} onClick={() => navigate(`/metrics?service=${name}`)}>
-            {t('service.metrics')}
-          </Button>
+          <Space size={6} wrap className="service-panel-investigation-actions">
+            <Button
+              size="small"
+              icon={<PartitionOutlined />}
+              disabled={!tracePath}
+              onClick={() => openInvestigation(tracePath)}
+            >
+              {t('nav.traces')}
+            </Button>
+            <Button
+              size="small"
+              icon={<FireOutlined />}
+              disabled={!logPath}
+              onClick={() => openInvestigation(logPath)}
+            >
+              {t('nav.logs')}
+            </Button>
+            <Button
+              size="small"
+              type="primary"
+              ghost
+              icon={<LineChartOutlined />}
+              disabled={!metricsPath}
+              onClick={() => openInvestigation(metricsPath)}
+            >
+              {t('service.metrics')}
+            </Button>
+          </Space>
         )
       }
     >

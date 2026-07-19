@@ -19,6 +19,7 @@ import LogDetailDrawer from './LogDetailDrawer';
 import { SeverityTag, ServiceBadge } from '@/components/tags';
 import { useApp } from '@/context/AppContext';
 import useFetch from '@/hooks/useFetch';
+import useInvestigationRange from '@/hooks/useInvestigationRange';
 import { buildLogStreamUrl, searchLogs, fetchFilters } from '@/api';
 import { buildSeverityHistogram, pickTimeStep } from '@/charts/options';
 import { formatTime, formatInt } from '@/utils/format';
@@ -59,9 +60,10 @@ function compactFilters(filters) {
 }
 
 export default function LogSearchPage() {
-  const { range, autoRefreshRevision } = useApp();
+  const { autoRefreshRevision } = useApp();
   const { t, i18n } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
+  const effectiveRange = useInvestigationRange(searchParams);
   const urlFilters = useMemo(
     () => ({
       traceId: searchParams.get('traceId') || undefined,
@@ -116,11 +118,11 @@ export default function LogSearchPage() {
         ...applied,
         traceId,
         spanId,
-        from: range.from,
-        to: range.to,
+        from: effectiveRange.from,
+        to: effectiveRange.to,
         limit: 300,
       }),
-    [applied, traceId, spanId, range.from, range.to],
+    [applied, traceId, spanId, effectiveRange.from, effectiveRange.to],
     { backgroundKey: autoRefreshRevision },
   );
 
@@ -142,8 +144,8 @@ export default function LogSearchPage() {
         ...applied,
         traceId,
         spanId,
-        from: range.from,
-        to: range.to,
+        from: effectiveRange.from,
+        to: effectiveRange.to,
         limit: 50,
       });
       const items = [...(history.items || [])].reverse();
@@ -248,10 +250,10 @@ export default function LogSearchPage() {
 
   const histogramOption = useMemo(() => {
     if (!data?.histogram) return null;
-    const step = pickTimeStep(range.from, range.to);
-    return buildSeverityHistogram(data.histogram, step, { from: range.from, to: range.to });
+    const step = pickTimeStep(effectiveRange.from, effectiveRange.to);
+    return buildSeverityHistogram(data.histogram, step, effectiveRange);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, range, i18n.language]);
+  }, [data, effectiveRange.from, effectiveRange.to, i18n.language]);
 
   const columns = [
     {

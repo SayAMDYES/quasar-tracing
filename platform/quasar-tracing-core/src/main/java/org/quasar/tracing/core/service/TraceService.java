@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -18,10 +19,13 @@ import org.quasar.tracing.common.api.QTPageDTO;
 import org.quasar.tracing.common.dto.LogRecordDTO;
 import org.quasar.tracing.common.dto.SpanDTO;
 import org.quasar.tracing.common.dto.SpanEventDTO;
+import org.quasar.tracing.common.dto.TraceAttributeConditionDTO;
 import org.quasar.tracing.common.dto.TraceDetailDTO;
+import org.quasar.tracing.common.dto.TraceSpanSelectorDTO;
 import org.quasar.tracing.common.dto.TraceSummaryDTO;
 import org.quasar.tracing.common.util.TimeWindowUtil;
 import org.quasar.tracing.core.config.QueryProperties;
+import org.quasar.tracing.core.exception.InvalidQueryException;
 import org.quasar.tracing.core.exception.NotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -49,7 +53,10 @@ public class TraceService {
     public QTPageDTO<TraceSummaryDTO> search(String service, String operation, String status, String environment,
             String namespace, String k8sNamespace, String k8sPodName, String k8sNodeName, String serviceInstanceId,
             Double minDurationMs, Double maxDurationMs, Long from, Long to, String q,
+            List<TraceAttributeConditionDTO> attributeConditions,
+            String spanService, String spanOperation, String spanStatus,
             String sort, String order, Integer limit, Integer offset) {
+        TraceSpanSelectorDTO spanSelector = normalizeSpanSelector(spanService, spanOperation, spanStatus);
         Long toMs = TimeWindowUtil.resolveTo(to);
         Long fromMs = TimeWindowUtil.resolveFrom(from, toMs);
         Integer effectiveLimit = query.clamp(limit, query.defaultTraceLimit());
@@ -59,7 +66,9 @@ public class TraceService {
             service, operation, status == null ? "all" : status, environment,
             namespace, k8sNamespace, k8sPodName, k8sNodeName, serviceInstanceId,
             msToNs(minDurationMs), msToNs(maxDurationMs), fromMs, toMs, q,
-            sort, order, effectiveLimit, effectiveOffset);
+            sort, order, effectiveLimit, effectiveOffset,
+            attributeConditions == null ? List.of() : attributeConditions,
+            spanSelector);
 
         List<TraceSummaryDTO> records = traceMapper.search(filter).stream()
             .map(TraceService::toSummaryDto)
@@ -146,6 +155,31 @@ public class TraceService {
 
     private static Long msToNs(Double ms) {
         return ms == null ? null : (long) (ms * NANOS_PER_MILLI);
+    }
+
+    private static TraceSpanSelectorDTO normalizeSpanSelector(
+            String service, String operation, String status) {
+        String normalizedService = normalizeSelectorValue(service);
+        String normalizedOperation = normalizeSelectorValue(operation);
+        String normalizedStatus = normalizeSelectorValue(status);
+        if (normalizedStatus != null) {
+            normalizedStatus = normalizedStatus.toLowerCase(Locale.ROOT);
+            if (!"error".equals(normalizedStatus) && !"ok".equals(normalizedStatus)) {
+                throw new InvalidQueryException("Span status must be error or ok");
+            }
+        }
+        if (normalizedService == null && normalizedOperation == null && normalizedStatus == null) {
+            return null;
+        }
+        return new TraceSpanSelectorDTO(normalizedService, normalizedOperation, normalizedStatus);
+    }
+
+    private static String normalizeSelectorValue(String value) {
+        if (value == null) {
+            return null;
+        }
+        String normalized = value.trim();
+        return normalized.isEmpty() ? null : normalized;
     }
 
     private static TraceSummaryDTO toSummaryDto(TraceSummaryEntity e) {

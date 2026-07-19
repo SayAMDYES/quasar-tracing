@@ -1,8 +1,11 @@
 package org.quasar.tracing.clickhouse.mapper;
 
+import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.quasar.tracing.common.dto.TraceAttributeConditionDTO;
+import org.quasar.tracing.common.dto.TraceSpanSelectorDTO;
 
 /**
  * Normalized inputs for the trace-search query. Built by the core service (window
@@ -70,4 +73,10 @@ public class TraceSearchFilter {
     private Integer limit;
 
     private Integer offset;
+
+    /** Conditions that must all match the same span row; empty = no attribute filter. */
+    private List<TraceAttributeConditionDTO> attributeConditions;
+
+    /** Fields that must match one span row; null = no same-span filter. */
+    private TraceSpanSelectorDTO spanSelector;
 }

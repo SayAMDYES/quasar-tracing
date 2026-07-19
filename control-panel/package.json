@@ -8,7 +8,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test:trace": "node --test src/utils/traceAnalysis.test.js"
+    "test:trace": "node --test src/utils/traceAnalysis.test.js",
+    "test:control-panel": "node --test src/utils/traceAnalysis.test.js src/utils/traceSearchParams.test.js src/utils/investigationContext.test.js"
   },
   "dependencies": {
     "@ant-design/icons": "^5.5.1",

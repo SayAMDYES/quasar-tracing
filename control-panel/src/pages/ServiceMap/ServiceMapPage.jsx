@@ -15,28 +15,30 @@ import AsyncBoundary from '@/components/AsyncBoundary';
 import ServicePanel from './ServicePanel';
 import { useApp } from '@/context/AppContext';
 import useFetch from '@/hooks/useFetch';
+import useInvestigationRange from '@/hooks/useInvestigationRange';
 import { fetchDependencies } from '@/api';
 import { buildServiceGraph } from '@/charts/options';
 
 const { Text } = Typography;
 
 export default function ServiceMapPage() {
-  const { range, autoRefreshRevision } = useApp();
+  const { autoRefreshRevision } = useApp();
   const { t, i18n } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [selected, setSelected] = useState(searchParams.get('focus') || null);
+  const effectiveRange = useInvestigationRange(searchParams);
+  const urlFocus = searchParams.get('focus') || null;
+  const [selected, setSelected] = useState(urlFocus);
 
   const { data, loading, error, refetch } = useFetch(
-    () => fetchDependencies({ from: range.from, to: range.to }),
-    [range.from, range.to],
+    () => fetchDependencies({ from: effectiveRange.from, to: effectiveRange.to }),
+    [effectiveRange.from, effectiveRange.to],
     { backgroundKey: autoRefreshRevision },
   );
 
   // Honor ?focus=service deep links (e.g. from the Overview health table).
   useEffect(() => {
-    const focus = searchParams.get('focus');
-    if (focus) setSelected(focus);
-  }, [searchParams]);
+    setSelected(urlFocus);
+  }, [urlFocus]);
 
   const option = useMemo(
     () => (data ? buildServiceGraph(data.nodes, data.edges, selected) : null),
@@ -55,7 +57,11 @@ export default function ServiceMapPage() {
 
   const closePanel = () => {
     setSelected(null);
-    if (searchParams.get('focus')) setSearchParams({});
+    if (searchParams.get('focus')) {
+      const next = new URLSearchParams(searchParams);
+      next.delete('focus');
+      setSearchParams(next);
+    }
   };
 
   return (
@@ -88,7 +94,7 @@ export default function ServiceMapPage() {
 
       <ServicePanel
         name={selected}
-        range={range}
+        range={effectiveRange}
         autoRefreshRevision={autoRefreshRevision}
         open={!!selected}
         onClose={closePanel}

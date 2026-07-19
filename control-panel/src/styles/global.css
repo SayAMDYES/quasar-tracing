@@ -446,6 +446,220 @@ body {
   padding: 8px 0 0 !important;
 }
 
+.trace-attribute-builder {
+  grid-column: 1 / -1;
+  min-width: 0;
+  margin-top: 4px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.trace-attribute-builder-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.trace-attribute-builder-title,
+.trace-attribute-chips-label {
+  display: block;
+  color: var(--heading);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.trace-attribute-builder-hint {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.trace-attribute-rows {
+  display: flex;
+  min-width: 0;
+  margin-top: 12px;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.trace-attribute-row {
+  display: grid;
+  grid-template-columns: 112px minmax(200px, 1fr) 132px minmax(180px, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+}
+
+.trace-attribute-field {
+  min-width: 0;
+}
+
+.trace-attribute-field .ant-select,
+.trace-attribute-field .ant-select-auto-complete,
+.trace-attribute-field .ant-input {
+  width: 100%;
+  min-width: 0;
+}
+
+.trace-attribute-actions {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  min-height: 32px;
+}
+
+.trace-attribute-row-error {
+  grid-column: 1 / -1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+
+.trace-attribute-limit {
+  display: block;
+  margin-top: 8px;
+  color: var(--warn);
+  font-size: 12px;
+}
+
+.trace-attribute-validation {
+  margin-top: 10px;
+}
+
+.trace-attribute-chips {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+  margin: -6px 0 16px;
+}
+
+.trace-attribute-chips-label {
+  margin-right: 2px;
+}
+
+.trace-attribute-chip {
+  max-width: 100%;
+  height: auto;
+  margin: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.span-investigation-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+  margin-bottom: 16px;
+}
+
+.span-investigation-action {
+  display: inline-flex;
+  min-width: 0;
+}
+
+.service-panel-investigation-actions,
+.log-detail-investigation-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.log-detail-investigation-actions > span {
+  display: inline-flex;
+}
+
+.related-logs-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-bottom: 10px;
+}
+
+@media (max-width: 768px) {
+  .trace-attribute-builder-header {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .trace-attribute-builder-header .ant-btn {
+    align-self: flex-start;
+  }
+
+  .trace-attribute-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .trace-attribute-field,
+  .trace-attribute-actions {
+    grid-column: 1;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .trace-attribute-actions {
+    justify-content: flex-start;
+  }
+
+  .trace-attribute-chips {
+    align-items: flex-start;
+  }
+
+  .span-investigation-action {
+    flex: 1 1 calc(50% - 4px);
+  }
+
+  .span-investigation-action .ant-btn {
+    width: 100%;
+  }
+
+  .service-panel-investigation-actions,
+  .log-detail-investigation-actions {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .investigation-actions-drawer .ant-drawer-header {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .investigation-actions-drawer .ant-drawer-extra {
+    flex: 1 0 100%;
+    min-width: 0;
+  }
+
+  .service-panel-investigation-actions .ant-btn,
+  .log-detail-investigation-actions .ant-btn {
+    min-height: 36px;
+  }
+
+  .related-logs-toolbar {
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 420px) {
+  .span-investigation-action {
+    flex-basis: 100%;
+  }
+}
+
 .async-error-detail {
   margin-top: 12px;
   max-width: min(680px, 80vw);

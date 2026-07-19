@@ -1,6 +1,7 @@
 package org.quasar.tracing.server.advice;
 
 import org.quasar.tracing.common.api.QTResponse;
+import org.quasar.tracing.core.exception.InvalidQueryException;
 import org.quasar.tracing.core.exception.NotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -21,6 +22,12 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(InvalidQueryException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public QTResponse<Void> invalidQuery(InvalidQueryException e) {
+        return QTResponse.fail(HttpStatus.BAD_REQUEST.value(), e.getMessage());
+    }
 
     @ExceptionHandler(NotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)

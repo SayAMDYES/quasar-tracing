@@ -13,10 +13,11 @@ import { useTranslation } from 'react-i18next';
 import { SeverityTag, ServiceBadge } from '@/components/tags';
 import CopyableId from '@/components/CopyableId';
 import { formatTime } from '@/utils/format';
+import { buildInvestigationPath } from '@/utils/investigationContext';
 
 const { Text } = Typography;
 
-export default function RelatedLogs({ traceId, logs, selectedSpan }) {
+export default function RelatedLogs({ traceId, logs, selectedSpan, investigationWindow }) {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const [scope, setScope] = useState('trace');
@@ -40,6 +41,14 @@ export default function RelatedLogs({ traceId, logs, selectedSpan }) {
     () => (canFilterBySpan ? (logs || []).filter((log) => log.spanId === selectedSpanId) : logs || []),
     [canFilterBySpan, logs, selectedSpanId],
   );
+  const logSearchPath = traceId
+    ? buildInvestigationPath('logs', {
+        from: investigationWindow?.from,
+        to: investigationWindow?.to,
+        traceId,
+        spanId: canFilterBySpan ? selectedSpanId : undefined,
+      })
+    : null;
 
   const columns = [
     {
@@ -71,7 +80,7 @@ export default function RelatedLogs({ traceId, logs, selectedSpan }) {
 
   return (
     <>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
+      <div className="related-logs-toolbar">
         <Space size={10} wrap>
           <Text type="secondary" style={{ fontSize: 13 }}>
             {t('traceDetail.relatedCorrelated', { n: visibleLogs.length })}{' '}
@@ -89,12 +98,9 @@ export default function RelatedLogs({ traceId, logs, selectedSpan }) {
             type="link"
             size="small"
             icon={<ExportOutlined />}
+            disabled={!logSearchPath}
             onClick={() => {
-              const query = new URLSearchParams({ traceId });
-              if (scope === 'span' && selectedSpanId && hasSpanIds) {
-                query.set('spanId', selectedSpanId);
-              }
-              navigate(`/logs?${query.toString()}`);
+              if (logSearchPath) navigate(logSearchPath);
             }}
           >
             {t('traceDetail.openInLogSearch')}

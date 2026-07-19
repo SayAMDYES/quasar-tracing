@@ -5,7 +5,7 @@
  * @author Quasar
  */
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Card, Col, Collapse, Input, InputNumber, Row, Select, Space, Table, Tag, Typography } from 'antd';
+import { Alert, Button, Card, Col, Collapse, Input, InputNumber, Row, Select, Space, Table, Tag, Typography } from 'antd';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import PageHeader from '@/components/PageHeader';
@@ -13,12 +13,21 @@ import Toolbar from '@/components/Toolbar';
 import EChart from '@/components/EChart';
 import DurationBar from '@/components/DurationBar';
 import CopyableId from '@/components/CopyableId';
+import TraceAttributeFilterBuilder from '@/components/TraceAttributeFilterBuilder';
 import { ServiceBadge, SpanStatusTag, EnvTag } from '@/components/tags';
 import { useApp } from '@/context/AppContext';
 import useFetch from '@/hooks/useFetch';
+import useInvestigationRange from '@/hooks/useInvestigationRange';
 import { searchTraces, fetchFilters } from '@/api';
 import { buildTraceDistributionCharts } from '@/charts/options';
 import { formatTime, formatInt, fromNow } from '@/utils/format';
+import {
+  decodeTraceSearchParams,
+  encodeTraceSearchParams,
+  normalizeAttributeConditions,
+  toTraceSearchRequest,
+} from '@/utils/traceSearchParams';
+import { parseInvestigationRange } from '@/utils/investigationContext';
 import { status as statusColors } from '@/theme/tokens';
 
 const { Text } = Typography;
@@ -35,6 +44,7 @@ const DEFAULT_FILTERS = {
   minDurationMs: undefined,
   maxDurationMs: undefined,
   q: '',
+  attributeConditions: [],
 };
 
 function roundDurationFilter(value) {
@@ -52,80 +62,94 @@ function isNestedInteractiveTarget(event) {
   return event.target !== event.currentTarget;
 }
 
-function compactFilters(filters) {
-  return {
-    ...filters,
-    q: filters.q?.trim() || '',
-    service: filters.service || undefined,
-    operation: filters.operation || undefined,
-    environment: filters.environment || undefined,
-    namespace: filters.namespace || undefined,
-    k8sPodName: filters.k8sPodName || undefined,
-    k8sNodeName: filters.k8sNodeName || undefined,
-    serviceInstanceId: filters.serviceInstanceId || undefined,
-    status: filters.status || 'all',
-    minDurationMs: filters.minDurationMs ?? undefined,
-    maxDurationMs: filters.maxDurationMs ?? undefined,
-  };
+function attributeConditionKey(condition) {
+  return JSON.stringify([
+    condition.scope,
+    condition.key,
+    condition.operator,
+    condition.value,
+  ]);
 }
 
-function filtersToSearchParams(filters) {
-  const compacted = compactFilters(filters);
-  const next = new URLSearchParams();
-  Object.entries(compacted).forEach(([key, value]) => {
-    if (value === undefined || value === '' || (key === 'status' && value === 'all')) return;
-    next.set(key, String(value));
+function appliedConditionLabel(condition, t) {
+  return t('traceSearch.appliedCondition', {
+    scope: t(`traceSearch.${condition.scope}`),
+    key: condition.key,
+    operator: t(`traceSearch.${condition.operator}`),
+    value: condition.operator === 'exists' ? '' : ` · ${condition.value}`,
   });
-  return next;
+}
+
+function encodeFiltersWithRange(filters, investigationRange) {
+  const params = encodeTraceSearchParams(filters);
+  if (investigationRange) {
+    params.set('from', String(investigationRange.from));
+    params.set('to', String(investigationRange.to));
+  }
+  return params;
 }
 
 export default function TraceSearchPage() {
-  const { range, autoRefreshRevision } = useApp();
+  const { autoRefreshRevision } = useApp();
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
-  const urlFilters = useMemo(
-    () => ({
-      service: searchParams.get('service') || undefined,
-      operation: searchParams.get('operation') || undefined,
-      environment: searchParams.get('environment') || undefined,
-      namespace: searchParams.get('namespace') || undefined,
-      k8sPodName: searchParams.get('k8sPodName') || undefined,
-      k8sNodeName: searchParams.get('k8sNodeName') || undefined,
-      serviceInstanceId: searchParams.get('serviceInstanceId') || undefined,
-      status: searchParams.get('status') || 'all',
-      minDurationMs: searchParams.get('minDurationMs') ? Number(searchParams.get('minDurationMs')) : undefined,
-      maxDurationMs: searchParams.get('maxDurationMs') ? Number(searchParams.get('maxDurationMs')) : undefined,
-      q: searchParams.get('q') || '',
-    }),
-    [searchParams],
+  const searchParamsString = searchParams.toString();
+  const effectiveRange = useInvestigationRange(searchParams);
+  const investigationRange = useMemo(
+    () => parseInvestigationRange(new URLSearchParams(searchParamsString)),
+    [searchParamsString],
   );
-
-  const [form, setForm] = useState({ ...DEFAULT_FILTERS, ...urlFilters });
-  const [applied, setApplied] = useState(form);
+  const rangeToPersist = investigationRange ? effectiveRange : null;
+  const { filters: applied, attributeError } = useMemo(
+    () => decodeTraceSearchParams(new URLSearchParams(searchParamsString)),
+    [searchParamsString],
+  );
+  const [form, setForm] = useState(() => ({ ...DEFAULT_FILTERS, ...applied }));
 
   useEffect(() => {
-    const next = { ...DEFAULT_FILTERS, ...urlFilters };
-    setForm((f) => ({ ...f, ...next }));
-    setApplied((f) => ({ ...f, ...next }));
-  }, [urlFilters]);
+    const decoded = decodeTraceSearchParams(new URLSearchParams(searchParamsString));
+    setForm({ ...DEFAULT_FILTERS, ...decoded.filters });
+  }, [searchParamsString]);
 
   const { data: filters } = useFetch(fetchFilters, []);
   const { data, loading, error, refetch } = useFetch(
-    () => searchTraces({ ...applied, from: range.from, to: range.to, limit: 200 }),
-    [applied, range.from, range.to],
+    () => attributeError
+      ? Promise.resolve({ items: [], total: 0 })
+      : searchTraces({
+        ...toTraceSearchRequest(applied),
+        from: effectiveRange.from,
+        to: effectiveRange.to,
+        limit: 200,
+      }),
+    [attributeError, applied, effectiveRange.from, effectiveRange.to],
     { backgroundKey: autoRefreshRevision },
   );
 
   const apply = () => {
-    const next = compactFilters(form);
-    setApplied(next);
-    setSearchParams(filtersToSearchParams(next));
+    const normalized = normalizeAttributeConditions(form.attributeConditions);
+    if (normalized.errors.length) return;
+    const next = { ...form, attributeConditions: normalized.conditions };
+    setForm(next);
+    setSearchParams(encodeFiltersWithRange(next, rangeToPersist));
   };
   const resetFilters = () => {
-    setForm(DEFAULT_FILTERS);
-    setApplied(DEFAULT_FILTERS);
-    setSearchParams(new URLSearchParams());
+    setForm({ ...DEFAULT_FILTERS, attributeConditions: [] });
+    setSearchParams(encodeFiltersWithRange(DEFAULT_FILTERS, rangeToPersist));
+  };
+  const clearInvalidAttributes = () => {
+    const next = new URLSearchParams(searchParamsString);
+    next.delete('attributes');
+    setSearchParams(next);
+  };
+  const removeAppliedAttributeCondition = (index) => {
+    const next = {
+      ...applied,
+      attributeConditions: applied.attributeConditions.filter(
+        (_, conditionIndex) => conditionIndex !== index,
+      ),
+    };
+    setSearchParams(encodeFiltersWithRange(next, rangeToPersist));
   };
   const applyDurationRange = (bucket) => {
     if (!bucket) return;
@@ -134,10 +158,11 @@ export default function TraceSearchPage() {
       minDurationMs: roundDurationFilter(bucket.start),
       maxDurationMs: roundDurationFilter(bucket.end),
     };
-    const compacted = compactFilters(next);
-    setForm(next);
-    setApplied(compacted);
-    setSearchParams(filtersToSearchParams(compacted));
+    const normalized = normalizeAttributeConditions(next.attributeConditions);
+    if (normalized.errors.length) return;
+    const normalizedNext = { ...next, attributeConditions: normalized.conditions };
+    setForm(normalizedNext);
+    setSearchParams(encodeFiltersWithRange(normalizedNext, rangeToPersist));
   };
   const maxNs = useMemo(
     () => (data?.items?.length ? Math.max(...data.items.map((it) => it.durationNs)) : 1),
@@ -145,9 +170,9 @@ export default function TraceSearchPage() {
   );
   const distributionCharts = useMemo(() => {
     if (!data?.items?.length) return null;
-    return buildTraceDistributionCharts(data.items, { from: range.from, to: range.to });
+    return buildTraceDistributionCharts(data.items, effectiveRange);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, range.from, range.to, i18n.language]);
+  }, [data, effectiveRange.from, effectiveRange.to, i18n.language]);
 
   const columns = [
     {
@@ -254,6 +279,9 @@ export default function TraceSearchPage() {
     applied.q,
     applied.service,
     applied.operation,
+    applied.spanService,
+    applied.spanOperation,
+    applied.spanStatus,
     applied.environment,
     applied.status && applied.status !== 'all' ? applied.status : undefined,
     applied.namespace,
@@ -262,8 +290,14 @@ export default function TraceSearchPage() {
     applied.serviceInstanceId,
     applied.minDurationMs,
     applied.maxDurationMs,
-  ].filter((v) => v !== undefined && v !== null && v !== '').length;
-  const hasDraftChanges = JSON.stringify(compactFilters(form)) !== JSON.stringify(compactFilters(applied));
+  ].filter((v) => v !== undefined && v !== null && v !== '').length
+    + applied.attributeConditions.length;
+  const normalizedDraft = normalizeAttributeConditions(form.attributeConditions);
+  const hasDraftChanges = normalizedDraft.errors.length > 0
+    || JSON.stringify(toTraceSearchRequest({
+      ...form,
+      attributeConditions: normalizedDraft.conditions,
+    })) !== JSON.stringify(toTraceSearchRequest(applied));
 
   return (
     <>
@@ -322,7 +356,13 @@ export default function TraceSearchPage() {
             <div className="query-filter-actions">
               {activeFilterCount > 0 && <Tag className="query-filter-chip">{t('common.activeFilters', { count: activeFilterCount })}</Tag>}
               {hasDraftChanges && <Tag>{t('common.unappliedChanges')}</Tag>}
-              <Button type="primary" onClick={apply}>{t('common.apply')}</Button>
+              <Button
+                type="primary"
+                disabled={normalizedDraft.errors.length > 0}
+                onClick={apply}
+              >
+                {t('common.apply')}
+              </Button>
               <Button onClick={resetFilters}>{t('common.reset')}</Button>
             </div>
           </div>
@@ -419,6 +459,14 @@ export default function TraceSearchPage() {
                         <Input value="ms" readOnly style={{ width: 38, color: 'var(--text-muted)' }} />
                       </Space.Compact>
                     </div>
+                    <TraceAttributeFilterBuilder
+                      conditions={form.attributeConditions}
+                      errors={normalizedDraft.errors}
+                      onChange={(attributeConditions) => setForm((current) => ({
+                        ...current,
+                        attributeConditions,
+                      }))}
+                    />
                   </div>
                 ),
               },
@@ -426,6 +474,39 @@ export default function TraceSearchPage() {
           />
         </div>
       </Toolbar>
+
+      {applied.attributeConditions.length > 0 && (
+        <div className="trace-attribute-chips" aria-label={t('traceSearch.attributeTitle')}>
+          <Text className="trace-attribute-chips-label">{t('traceSearch.attributeTitle')}</Text>
+          {applied.attributeConditions.map((condition, index) => (
+            <Tag
+              className="trace-attribute-chip"
+              key={attributeConditionKey(condition)}
+              closable
+              onClose={() => removeAppliedAttributeCondition(index)}
+            >
+              {appliedConditionLabel(condition, t)}
+            </Tag>
+          ))}
+        </div>
+      )}
+
+      {attributeError && (
+        <Alert
+          showIcon
+          closable
+          type="error"
+          message={t('traceSearch.invalidUrl')}
+          description={t('traceSearch.invalidUrlHint')}
+          action={(
+            <Button size="small" onClick={clearInvalidAttributes}>
+              {t('traceSearch.clearInvalid')}
+            </Button>
+          )}
+          onClose={clearInvalidAttributes}
+          style={{ marginBottom: 16 }}
+        />
+      )}
 
       <div style={{ marginBottom: 10 }}>
         <Text type="secondary" style={{ fontSize: 13 }}>

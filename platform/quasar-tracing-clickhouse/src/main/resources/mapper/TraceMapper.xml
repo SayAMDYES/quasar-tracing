@@ -56,6 +56,61 @@
             AND if(indexOf(mapKeys(any(ResourceAttributes)), 'service.instance.id') = 0, '',
                 arrayElement(mapValues(any(ResourceAttributes)), indexOf(mapKeys(any(ResourceAttributes)), 'service.instance.id'))) = #{serviceInstanceId}
         </if>
+        <if test="attributeConditions != null and !attributeConditions.isEmpty()">
+            AND countIf(
+            <foreach collection="attributeConditions" item="condition" separator=" AND ">
+                <choose>
+                    <when test="condition.scope == 'resource'">
+                        <choose>
+                            <when test="condition.operator == 'exists'">
+                                (mapContains(ResourceAttributes, #{condition.key}))
+                            </when>
+                            <when test="condition.operator == 'equals'">
+                                (mapContains(ResourceAttributes, #{condition.key})
+                                 AND ResourceAttributes[#{condition.key}] = #{condition.value})
+                            </when>
+                            <otherwise>
+                                (mapContains(ResourceAttributes, #{condition.key})
+                                 AND positionCaseInsensitive(ResourceAttributes[#{condition.key}], #{condition.value}) > 0)
+                            </otherwise>
+                        </choose>
+                    </when>
+                    <otherwise>
+                        <choose>
+                            <when test="condition.operator == 'exists'">
+                                (mapContains(SpanAttributes, #{condition.key}))
+                            </when>
+                            <when test="condition.operator == 'equals'">
+                                (mapContains(SpanAttributes, #{condition.key})
+                                 AND SpanAttributes[#{condition.key}] = #{condition.value})
+                            </when>
+                            <otherwise>
+                                (mapContains(SpanAttributes, #{condition.key})
+                                 AND positionCaseInsensitive(SpanAttributes[#{condition.key}], #{condition.value}) > 0)
+                            </otherwise>
+                        </choose>
+                    </otherwise>
+                </choose>
+            </foreach>
+            ) > 0
+        </if>
+        <if test="spanSelector != null">
+            AND countIf(
+                1 = 1
+                <if test="spanSelector.service != null and spanSelector.service != ''">
+                    AND ServiceName = #{spanSelector.service}
+                </if>
+                <if test="spanSelector.operation != null and spanSelector.operation != ''">
+                    AND SpanName = #{spanSelector.operation}
+                </if>
+                <if test="spanSelector.status == 'error'">
+                    AND StatusCode = 'Error'
+                </if>
+                <if test="spanSelector.status == 'ok'">
+                    AND StatusCode != 'Error'
+                </if>
+            ) > 0
+        </if>
         <if test="minDurationNs != null and minDurationNs > 0">
             AND (max(toUnixTimestamp64Nano(Timestamp) + Duration) - min(toUnixTimestamp64Nano(Timestamp))) >= #{minDurationNs}
         </if>

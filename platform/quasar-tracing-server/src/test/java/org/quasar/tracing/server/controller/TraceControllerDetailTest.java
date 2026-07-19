@@ -13,6 +13,7 @@ import org.quasar.tracing.common.dto.TraceDetailDTO;
 import org.quasar.tracing.common.dto.TraceSummaryDTO;
 import org.quasar.tracing.core.exception.NotFoundException;
 import org.quasar.tracing.core.service.TraceService;
+import org.quasar.tracing.server.query.TraceAttributeConditionParser;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -33,6 +34,9 @@ class TraceControllerDetailTest {
 
     @MockitoBean
     private TraceService traceService;
+
+    @MockitoBean
+    private TraceAttributeConditionParser parser;
 
     @Test
     void returnsTraceDetailJson() throws Exception {

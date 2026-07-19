@@ -4,18 +4,59 @@
  *
  * @author Quasar
  */
-import { Drawer, Descriptions, Button, Space, Divider } from 'antd';
-import { PartitionOutlined } from '@ant-design/icons';
+import { Drawer, Descriptions, Button, Space, Divider, Tooltip } from 'antd';
+import { ApartmentOutlined, LineChartOutlined, PartitionOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import CopyableId from '@/components/CopyableId';
 import AttributeTable from '@/components/AttributeTable';
 import { SeverityTag, ServiceBadge, EnvTag } from '@/components/tags';
+import { useApp } from '@/context/AppContext';
 import { formatTimestamp } from '@/utils/format';
+import { buildInvestigationPath } from '@/utils/investigationContext';
+
+function nonBlankText(value) {
+  if (value == null) return undefined;
+  const normalized = String(value).trim();
+  return normalized || undefined;
+}
 
 export default function LogDetailDrawer({ log, open, onClose }) {
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const { range } = useApp();
+
+  const resourceAttributes = log?.resourceAttributes || {};
+  const traceId = nonBlankText(log?.traceId);
+  const service = nonBlankText(log?.service)
+    || nonBlankText(resourceAttributes['service.name']);
+  const serviceInstanceId = nonBlankText(log?.serviceInstanceId)
+    || nonBlankText(resourceAttributes['service.instance.id']);
+  const environment = nonBlankText(log?.environment)
+    || nonBlankText(resourceAttributes['deployment.environment.name']);
+  const namespace = nonBlankText(resourceAttributes['service.namespace'])
+    || nonBlankText(resourceAttributes['k8s.namespace.name'])
+    || nonBlankText(log?.k8sNamespace);
+  const investigationContext = service ? {
+    from: range.from,
+    to: range.to,
+    service,
+    serviceInstanceId,
+    environment,
+    namespace,
+  } : null;
+  const metricsPath = investigationContext
+    ? buildInvestigationPath('metrics', investigationContext)
+    : null;
+  const topologyPath = investigationContext
+    ? buildInvestigationPath('services', investigationContext)
+    : null;
+  const serviceDisabledReason = service
+    ? t('log.invalidTimeRange')
+    : t('log.missingService');
+  const openInvestigation = (path) => {
+    if (path) navigate(path);
+  };
 
   const attributes = log
     ? {
@@ -35,20 +76,64 @@ export default function LogDetailDrawer({ log, open, onClose }) {
 
   return (
     <Drawer
+      rootClassName="investigation-actions-drawer"
       open={open}
       onClose={onClose}
       width={560}
       title={t('log.title')}
       extra={
-        log?.traceId && (
-          <Button
-            type="primary"
-            ghost
-            icon={<PartitionOutlined />}
-            onClick={() => navigate(`/traces/${log.traceId}`)}
-          >
-            {t('log.viewTrace')}
-          </Button>
+        log && (
+          <Space size={6} wrap className="log-detail-investigation-actions">
+            <Tooltip title={traceId ? null : t('log.missingTraceId')}>
+              <span
+                tabIndex={traceId ? undefined : 0}
+                aria-label={traceId ? undefined : `${t('log.viewTrace')}: ${t('log.missingTraceId')}`}
+              >
+                <Button
+                  size="small"
+                  type="primary"
+                  ghost
+                  icon={<PartitionOutlined />}
+                  disabled={!traceId}
+                  onClick={() => {
+                    if (traceId) navigate(`/traces/${traceId}`);
+                  }}
+                >
+                  {t('log.viewTrace')}
+                </Button>
+              </span>
+            </Tooltip>
+            <Tooltip title={metricsPath ? null : serviceDisabledReason}>
+              <span
+                tabIndex={metricsPath ? undefined : 0}
+                aria-label={metricsPath ? undefined : `${t('log.viewMetrics')}: ${serviceDisabledReason}`}
+              >
+                <Button
+                  size="small"
+                  icon={<LineChartOutlined />}
+                  disabled={!metricsPath}
+                  onClick={() => openInvestigation(metricsPath)}
+                >
+                  {t('log.viewMetrics')}
+                </Button>
+              </span>
+            </Tooltip>
+            <Tooltip title={topologyPath ? null : serviceDisabledReason}>
+              <span
+                tabIndex={topologyPath ? undefined : 0}
+                aria-label={topologyPath ? undefined : `${t('log.locateTopology')}: ${serviceDisabledReason}`}
+              >
+                <Button
+                  size="small"
+                  icon={<ApartmentOutlined />}
+                  disabled={!topologyPath}
+                  onClick={() => openInvestigation(topologyPath)}
+                >
+                  {t('log.locateTopology')}
+                </Button>
+              </span>
+            </Tooltip>
+          </Space>
         )
       }
     >

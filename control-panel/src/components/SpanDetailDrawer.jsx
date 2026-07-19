@@ -9,6 +9,7 @@ import { Drawer, Descriptions, Divider, Typography, Space, Tag } from 'antd';
 import { useTranslation } from 'react-i18next';
 import CopyableId from './CopyableId';
 import AttributeTable from './AttributeTable';
+import SpanInvestigationActions from './SpanInvestigationActions';
 import { ServiceBadge, SpanStatusTag, SpanKindTag } from './tags';
 import { formatDuration, formatTimestamp } from '@/utils/format';
 
@@ -123,7 +124,16 @@ function collectDiagnosticGroups(span) {
   }).filter((group) => Object.keys(group.data).length > 0);
 }
 
-export default function SpanDetailDrawer({ span, traceStart, open, onClose }) {
+export default function SpanDetailDrawer({
+  span,
+  traceStart,
+  open,
+  onClose,
+  investigationActions,
+  onInvestigationNavigate,
+  onFilterResourceAttribute,
+  onFilterSpanAttribute,
+}) {
   const { t } = useTranslation();
   const diagnosticGroups = collectDiagnosticGroups(span);
 
@@ -187,6 +197,11 @@ export default function SpanDetailDrawer({ span, traceStart, open, onClose }) {
             <SpanStatusTag value={span.statusCode} />
           </Space>
 
+          <SpanInvestigationActions
+            actions={investigationActions}
+            onNavigate={onInvestigationNavigate}
+          />
+
           <Descriptions column={1} size="small" items={items} bordered />
 
           {diagnosticGroups.length > 0 && (
@@ -210,12 +225,18 @@ export default function SpanDetailDrawer({ span, traceStart, open, onClose }) {
           <Divider orientation="left" plain style={{ marginTop: 22 }}>
             {t('span.spanAttributes')}
           </Divider>
-          <AttributeTable data={span.spanAttributes} />
+          <AttributeTable
+            data={span.spanAttributes}
+            onFilterAttribute={onFilterSpanAttribute}
+          />
 
           <Divider orientation="left" plain>
             {t('span.resourceAttributes')}
           </Divider>
-          <AttributeTable data={span.resourceAttributes} />
+          <AttributeTable
+            data={span.resourceAttributes}
+            onFilterAttribute={onFilterResourceAttribute}
+          />
 
           {span.events && span.events.length > 0 && (
             <>
