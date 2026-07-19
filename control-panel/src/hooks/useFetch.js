@@ -12,21 +12,38 @@ export default function useFetch(fn, deps = [], { immediate = true, backgroundKe
   const [error, setError] = useState(null);
   const fnRef = useRef(fn);
   const backgroundKeyRef = useRef(backgroundKey);
+  const requestGenerationRef = useRef(0);
+  const mountedRef = useRef(false);
   fnRef.current = fn;
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      requestGenerationRef.current += 1;
+    };
+  }, []);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const run = useCallback(async ({ silent = false } = {}) => {
-    if (!silent) setLoading(true);
-    setError(null);
+    const generation = ++requestGenerationRef.current;
+    const isCurrent = () => (
+      mountedRef.current && requestGenerationRef.current === generation
+    );
+
+    if (isCurrent()) {
+      if (!silent) setLoading(true);
+      setError(null);
+    }
     try {
       const result = await fnRef.current();
-      setData(result);
+      if (isCurrent()) setData(result);
       return result;
     } catch (err) {
-      setError(err);
+      if (isCurrent()) setError(err);
       return undefined;
     } finally {
-      if (!silent) setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
   }, deps);
 

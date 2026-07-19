@@ -4,7 +4,7 @@
  *
  * @author Quasar
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card, Tabs, Badge, Space, Typography } from 'antd';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -15,9 +15,12 @@ import SpanDetailDrawer from '@/components/SpanDetailDrawer';
 import CopyableId from '@/components/CopyableId';
 import { SpanStatusTag, EnvTag, ServiceBadge } from '@/components/tags';
 import RelatedLogs from './RelatedLogs';
+import TraceDiagnostics from './TraceDiagnostics';
+import TraceStatistics from './TraceStatistics';
 import useFetch from '@/hooks/useFetch';
 import { fetchTrace, fetchTraceLogs } from '@/api';
 import { formatDuration, formatTimestamp } from '@/utils/format';
+import { createTraceAnalysis } from '@/utils/traceAnalysis';
 import { status as statusColors } from '@/theme/tokens';
 
 const { Text } = Typography;
@@ -39,13 +42,41 @@ export default function TraceDetailPage() {
   const { t } = useTranslation();
   const [selected, setSelected] = useState(null);
 
-  const { data, loading, error, refetch } = useFetch(() => fetchTrace(traceId), [traceId]);
-  const { data: logs } = useFetch(() => fetchTraceLogs(traceId), [traceId]);
-
-  const traceStart = useMemo(
-    () => (data?.spans?.length ? Math.min(...data.spans.map((s) => s.timestamp)) : 0),
-    [data],
+  const {
+    data: traceResult,
+    loading,
+    error,
+    refetch,
+  } = useFetch(
+    () => fetchTrace(traceId)
+      .then((value) => ({ traceId, value }))
+      .catch((cause) => {
+        throw Object.assign(
+          new Error(cause?.message || 'Trace request failed', { cause }),
+          { traceId },
+        );
+      }),
+    [traceId],
   );
+  const { data: logsResult } = useFetch(
+    () => fetchTraceLogs(traceId).then((value) => ({ traceId, value })),
+    [traceId],
+  );
+
+  useEffect(() => {
+    setSelected(null);
+  }, [traceId]);
+
+  const hasCurrentTraceResult = traceResult?.traceId === traceId;
+  const data = hasCurrentTraceResult ? traceResult.value : null;
+  const logs = logsResult?.traceId === traceId ? logsResult.value : [];
+  const currentError = error?.traceId === traceId ? error : null;
+  const analysis = useMemo(() => createTraceAnalysis(data?.spans || []), [data?.spans]);
+  const currentSelected = selected && analysis.byId.get(selected.spanId) === selected
+    ? selected
+    : null;
+  const traceStart = analysis.traceStart;
+  const traceLoading = (!hasCurrentTraceResult && !currentError) || (loading && !data);
 
   const summary = data?.summary;
 
@@ -66,10 +97,10 @@ export default function TraceDetailPage() {
       />
 
       <AsyncBoundary
-        loading={loading && !data}
-        error={error}
+        loading={traceLoading}
+        error={currentError}
         onRetry={refetch}
-        empty={!loading && !summary}
+        empty={!traceLoading && !summary}
         emptyText={t('traceDetail.notFound')}
       >
         {summary && (
@@ -112,11 +143,23 @@ export default function TraceDetailPage() {
                     label: t('traceDetail.tabTimeline'),
                     children: (
                       <TraceWaterfall
+                        key={traceId}
                         spans={data.spans}
-                        selectedId={selected?.spanId}
+                        analysis={analysis}
+                        selectedId={currentSelected?.spanId}
                         onSelect={setSelected}
                       />
                     ),
+                  },
+                  {
+                    key: 'diagnostics',
+                    label: t('traceDetail.tabDiagnostics'),
+                    children: <TraceDiagnostics analysis={analysis} onSelectSpan={setSelected} />,
+                  },
+                  {
+                    key: 'statistics',
+                    label: t('traceDetail.tabStatistics'),
+                    children: <TraceStatistics analysis={analysis} onSelectSpan={setSelected} />,
                   },
                   {
                     key: 'logs',
@@ -131,7 +174,13 @@ export default function TraceDetailPage() {
                         />
                       </Space>
                     ),
-                    children: <RelatedLogs traceId={traceId} logs={logs} selectedSpan={selected} />,
+                    children: (
+                      <RelatedLogs
+                        traceId={traceId}
+                        logs={logs}
+                        selectedSpan={currentSelected}
+                      />
+                    ),
                   },
                 ]}
               />
@@ -141,9 +190,9 @@ export default function TraceDetailPage() {
       </AsyncBoundary>
 
       <SpanDetailDrawer
-        span={selected}
+        span={currentSelected}
         traceStart={traceStart}
-        open={!!selected}
+        open={!!currentSelected}
         onClose={() => setSelected(null)}
       />
     </>
