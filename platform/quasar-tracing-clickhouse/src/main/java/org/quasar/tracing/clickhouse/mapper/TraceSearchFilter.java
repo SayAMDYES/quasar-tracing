@@ -79,4 +79,7 @@ public class TraceSearchFilter {
 
     /** Fields that must match one span row; null = no same-span filter. */
     private TraceSpanSelectorDTO spanSelector;
+
+    /** Fixed source branch selected by the core service: {@code live} or {@code archive}. */
+    private String source;
 }

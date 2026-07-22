@@ -6,7 +6,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Slider } from 'antd';
 import { useTranslation } from 'react-i18next';
-import { status as statusColors } from '@/theme/tokens';
+import { useThemeMode } from '@/context/ThemeContext';
 import { serviceColor } from '@/utils/colors';
 
 const MIN_RANGE_WIDTH = 2;
@@ -43,6 +43,7 @@ export default function TraceMinimap({
   onViewRangeChange,
 }) {
   const { t } = useTranslation();
+  const { tokens } = useThemeMode();
   const canvasRef = useRef(null);
   const [canvasSize, setCanvasSize] = useState({ width: 1, height: 1 });
   const normalizedRange = useMemo(
@@ -109,13 +110,13 @@ export default function TraceMinimap({
       const isError = String(span?.statusCode || '').toLowerCase() === 'error';
       const isCritical = criticalPathVisible && criticalIds.has(span?.spanId);
       context.fillStyle = isError
-        ? statusColors.error
+        ? tokens.status.error
         : isCritical
-          ? statusColors.warn
-          : serviceColor(span?.service);
+          ? tokens.status.warn
+          : serviceColor(span?.service, tokens.chartPalette);
       context.fillRect(left, top, Math.max(1, right - left), Math.max(1, bottom - top));
     });
-  }, [analysis, canvasSize, criticalPathVisible, rows]);
+  }, [analysis, canvasSize, criticalPathVisible, rows, tokens]);
 
   const handleCanvasClick = (event) => {
     const bounds = event.currentTarget.getBoundingClientRect();

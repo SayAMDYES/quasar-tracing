@@ -18,6 +18,7 @@ import CopyableId from '@/components/CopyableId';
 import LogDetailDrawer from './LogDetailDrawer';
 import { SeverityTag, ServiceBadge } from '@/components/tags';
 import { useApp } from '@/context/AppContext';
+import { useThemeMode } from '@/context/ThemeContext';
 import useFetch from '@/hooks/useFetch';
 import useInvestigationRange from '@/hooks/useInvestigationRange';
 import { buildLogStreamUrl, searchLogs, fetchFilters } from '@/api';
@@ -60,6 +61,7 @@ function compactFilters(filters) {
 }
 
 export default function LogSearchPage() {
+  const { chartTheme } = useThemeMode();
   const { autoRefreshRevision } = useApp();
   const { t, i18n } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -251,9 +253,9 @@ export default function LogSearchPage() {
   const histogramOption = useMemo(() => {
     if (!data?.histogram) return null;
     const step = pickTimeStep(effectiveRange.from, effectiveRange.to);
-    return buildSeverityHistogram(data.histogram, step, effectiveRange);
+    return buildSeverityHistogram(data.histogram, step, effectiveRange, chartTheme);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, effectiveRange.from, effectiveRange.to, i18n.language]);
+  }, [data, effectiveRange.from, effectiveRange.to, i18n.language, chartTheme]);
 
   const columns = [
     {

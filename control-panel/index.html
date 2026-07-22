@@ -2,6 +2,20 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      (() => {
+        let preference = 'system';
+        try {
+          const stored = localStorage.getItem('quasar.theme.mode');
+          if (stored === 'light' || stored === 'dark' || stored === 'system') preference = stored;
+        } catch {}
+        const mode = preference === 'system'
+          ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+          : preference;
+        document.documentElement.dataset.theme = mode;
+        document.documentElement.style.colorScheme = mode;
+      })();
+    </script>
     <link
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23F26A1B'/%3E%3Cpath d='M16 7a9 9 0 1 0 5.6 16.05l2.4 2.4 1.4-1.4-2.4-2.4A9 9 0 0 0 16 7Zm0 3.2a5.8 5.8 0 1 1 0 11.6 5.8 5.8 0 0 1 0-11.6Z' fill='white'/%3E%3C/svg%3E"

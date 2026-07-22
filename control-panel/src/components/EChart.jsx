@@ -7,6 +7,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import * as echarts from 'echarts';
+import { useThemeMode } from '@/context/ThemeContext';
 
 export default function EChart({
   option,
@@ -18,6 +19,7 @@ export default function EChart({
   onEvents,
   onReady,
 }) {
+  const { effectiveMode, chartTheme } = useThemeMode();
   const elRef = useRef(null);
   const chartRef = useRef(null);
   const hasRenderedOptionRef = useRef(false);
@@ -35,7 +37,22 @@ export default function EChart({
   }, []);
 
   useEffect(() => {
-    const chart = echarts.init(elRef.current, null, { renderer: 'canvas' });
+    hasRenderedOptionRef.current = false;
+    const chart = echarts.init(elRef.current, {
+      color: chartTheme.palette,
+      backgroundColor: 'transparent',
+      textStyle: { color: chartTheme.text },
+      categoryAxis: {
+        axisLine: { lineStyle: { color: chartTheme.split } },
+        axisLabel: { color: chartTheme.axis },
+        splitLine: { lineStyle: { color: chartTheme.split } },
+      },
+      valueAxis: {
+        axisLine: { lineStyle: { color: chartTheme.split } },
+        axisLabel: { color: chartTheme.axis },
+        splitLine: { lineStyle: { color: chartTheme.split } },
+      },
+    }, { renderer: 'canvas' });
     chartRef.current = chart;
 
     const handlers = {};
@@ -57,7 +74,7 @@ export default function EChart({
       chartRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [effectiveMode, chartTheme]);
 
   useEffect(() => {
     const chart = chartRef.current;
@@ -82,14 +99,18 @@ export default function EChart({
       },
     );
     hasRenderedOptionRef.current = true;
-  }, [option, notMerge, reducedMotion]);
+  }, [option, notMerge, reducedMotion, effectiveMode]);
 
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart) return;
-    if (loading) chart.showLoading('default', { color: '#F26A1B', maskColor: 'rgba(255,255,255,0.6)' });
+    if (loading) chart.showLoading('default', {
+      color: chartTheme.brand,
+      maskColor: chartTheme.loadingMask,
+      textColor: chartTheme.textSecondary,
+    });
     else chart.hideLoading();
-  }, [loading]);
+  }, [loading, effectiveMode, chartTheme]);
 
   const classes = [className, option && 'chart-enter'].filter(Boolean).join(' ');
   return <div ref={elRef} className={classes || undefined} style={{ width: '100%', height, ...style }} />;

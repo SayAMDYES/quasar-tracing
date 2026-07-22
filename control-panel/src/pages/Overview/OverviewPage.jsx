@@ -16,6 +16,7 @@ import AsyncBoundary from '@/components/AsyncBoundary';
 import { ServiceBadge, SeverityTag } from '@/components/tags';
 import CopyableId from '@/components/CopyableId';
 import { useApp } from '@/context/AppContext';
+import { useThemeMode } from '@/context/ThemeContext';
 import useFetch from '@/hooks/useFetch';
 import { fetchOverview } from '@/api';
 import { buildThroughputChart, buildErrorRateChart, buildEndpointBar, pickTimeStep } from '@/charts/options';
@@ -40,6 +41,7 @@ function serviceHealth(errorRate) {
 }
 
 export default function OverviewPage() {
+  const { chartTheme } = useThemeMode();
   const { range, autoRefreshRevision } = useApp();
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
@@ -54,12 +56,12 @@ export default function OverviewPage() {
     const step = pickTimeStep(range.from, range.to);
     const timeExtent = { from: range.from, to: range.to };
     return {
-      throughput: buildThroughputChart(data.series, step, timeExtent),
-      errorRate: buildErrorRateChart(data.series, step, timeExtent),
-      endpoints: buildEndpointBar(data.topEndpoints.slice(0, 7), 'p99'),
+      throughput: buildThroughputChart(data.series, step, timeExtent, chartTheme),
+      errorRate: buildErrorRateChart(data.series, step, timeExtent, chartTheme),
+      endpoints: buildEndpointBar(data.topEndpoints.slice(0, 7), 'p99', chartTheme),
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, range, i18n.language]);
+  }, [data, range, i18n.language, chartTheme]);
 
   const healthColumns = [
     { title: t('overview.colService'), dataIndex: 'name', width: 240, render: (name) => <ServiceBadge name={name} /> },

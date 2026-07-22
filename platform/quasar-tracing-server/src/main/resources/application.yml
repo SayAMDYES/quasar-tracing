@@ -31,6 +31,10 @@ quasar:
       default-trace-limit: 50
       default-log-limit: 100
       max-limit: 1000
+    archive:
+      enabled: false
+      retention-days: 180
+      max-spans-per-trace: 20000
     service-types:
       redis: datastore
       mysql: datastore

@@ -5,20 +5,25 @@
  * @author Quasar
  */
 import { useEffect, useMemo, useState } from 'react';
-import { App as AntApp, Card, Tabs, Badge, Space, Typography } from 'antd';
-import { useNavigate, useParams } from 'react-router-dom';
+import { App as AntApp, Button, Card, Tabs, Badge, Select, Space, Tag, Typography } from 'antd';
+import { DiffOutlined, FlagOutlined } from '@ant-design/icons';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import PageHeader from '@/components/PageHeader';
 import AsyncBoundary from '@/components/AsyncBoundary';
 import TraceWaterfall from '@/components/TraceWaterfall';
 import SpanDetailDrawer from '@/components/SpanDetailDrawer';
 import CopyableId from '@/components/CopyableId';
+import TraceArchiveAction from '@/components/TraceArchiveAction';
+import TraceSourceSelector from '@/components/TraceSourceSelector';
 import { SpanStatusTag, EnvTag, ServiceBadge } from '@/components/tags';
 import RelatedLogs from './RelatedLogs';
 import TraceDiagnostics from './TraceDiagnostics';
 import TraceStatistics from './TraceStatistics';
+import TraceJsonPanel from './TraceJsonPanel';
+import useTraceSource from '@/hooks/useTraceSource';
 import useFetch from '@/hooks/useFetch';
-import { fetchTrace, fetchTraceLogs } from '@/api';
+import { fetchArchiveCapabilities } from '@/api';
 import { useApp } from '@/context/AppContext';
 import { formatDuration, formatTimestamp } from '@/utils/format';
 import { createTraceAnalysis } from '@/utils/traceAnalysis';
@@ -28,6 +33,8 @@ import {
   traceInvestigationWindow,
 } from '@/utils/investigationContext';
 import { status as statusColors } from '@/theme/tokens';
+import { useTraceCompareSelection } from '@/context/TraceCompareSelectionContext';
+import { archiveTraceRef, importedTraceRef, liveTraceRef } from '@/utils/traceSourceRef';
 
 const { Text } = Typography;
 
@@ -43,56 +50,64 @@ function Metric({ label, value, color }) {
 }
 
 export default function TraceDetailPage() {
-  const { traceId } = useParams();
+  const { traceId: liveTraceId, sessionId } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { message } = AntApp.useApp();
   const { range } = useApp();
+  const compareSelection = useTraceCompareSelection();
   const [selected, setSelected] = useState(null);
   const [spanDrawerOpen, setSpanDrawerOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('timeline');
+  const [jsonVisited, setJsonVisited] = useState(false);
+  const requestedSource = searchParams.get('source') || 'auto';
+  const { data: archiveCapabilities } = useFetch(fetchArchiveCapabilities, []);
 
+  const traceSource = useTraceSource({
+    liveTraceId,
+    importedSessionId: sessionId,
+    importedTraceId: searchParams.get('trace'),
+    serverSource: requestedSource,
+  });
   const {
-    data: traceResult,
+    data,
+    document: sourceDocument,
+    error: currentError,
     loading,
-    error,
+    logs,
     refetch,
-  } = useFetch(
-    () => fetchTrace(traceId)
-      .then((value) => ({ traceId, value }))
-      .catch((cause) => {
-        throw Object.assign(
-          new Error(cause?.message || 'Trace request failed', { cause }),
-          { traceId },
-        );
-      }),
-    [traceId],
-  );
-  const { data: logsResult } = useFetch(
-    () => fetchTraceLogs(traceId).then((value) => ({ traceId, value })),
-    [traceId],
-  );
+    session,
+    source,
+    traceId,
+  } = traceSource;
 
   useEffect(() => {
     setSelected(null);
     setSpanDrawerOpen(false);
   }, [traceId]);
 
-  const hasCurrentTraceResult = traceResult?.traceId === traceId;
-  const data = hasCurrentTraceResult ? traceResult.value : null;
-  const logs = logsResult?.traceId === traceId ? logsResult.value : [];
-  const currentError = error?.traceId === traceId ? error : null;
   const analysis = useMemo(() => createTraceAnalysis(data?.spans || []), [data?.spans]);
   const currentSelected = selected && analysis.byId.get(selected.spanId) === selected
     ? selected
     : null;
   const traceStart = analysis.traceStart;
-  const traceLoading = (!hasCurrentTraceResult && !currentError) || (loading && !data);
+  const traceLoading = loading && !data;
   const selectSpan = (span) => {
     setSelected(span);
     setSpanDrawerOpen(Boolean(span));
   };
 
   const summary = data?.summary;
+  const sourceRef = source === 'imported'
+    ? importedTraceRef(sessionId)
+    : source === 'archive' ? archiveTraceRef(traceId) : liveTraceRef(traceId);
+  const changeSource = (value) => {
+    const next = new URLSearchParams(searchParams);
+    if (value === 'auto') next.delete('source');
+    else next.set('source', value);
+    setSearchParams(next);
+  };
   const investigationWindow = useMemo(
     () => traceInvestigationWindow(summary) || { from: range.from, to: range.to },
     [summary, range.from, range.to],
@@ -178,21 +193,82 @@ export default function TraceDetailPage() {
       <PageHeader
         onBack={() => navigate(-1)}
         title={summary ? summary.rootName : t('traceDetail.trace')}
-        description={summary ? <CopyableId value={summary.traceId} /> : t('traceDetail.loadingTrace')}
+        description={summary
+          ? <CopyableId value={summary.traceId} />
+          : currentError?.code === 'IMPORTED_SESSION_EXPIRED'
+            ? t('traceImport.expired')
+            : t('traceDetail.loadingTrace')}
         tags={
           summary && (
             <Space size={6}>
               <SpanStatusTag value={summary.status} />
               <EnvTag value={summary.environment} />
+              {source === 'imported' && <Tag color="cyan">{t('traceImport.imported')}</Tag>}
+              {source === 'archive' && <Tag color="purple">{t('traceArchive.sourceArchive')}</Tag>}
+              {summary.archivedAt && <Tag>{t('traceArchive.archivedAt', { time: formatTimestamp(summary.archivedAt) })}</Tag>}
             </Space>
           )
         }
+        extra={summary ? (
+          <Space wrap>
+            {source === 'imported' && session?.traceIds.length > 1 && (
+              <Select
+                className="imported-trace-selector"
+                value={traceId}
+                options={session.traceIds.map((value) => ({ label: value, value }))}
+                onChange={(value) => {
+                  const next = new URLSearchParams(searchParams);
+                  next.set('trace', value);
+                  setSearchParams(next);
+                }}
+              />
+            )}
+            {source !== 'imported' && (
+              <TraceSourceSelector
+                auto
+                enabled={archiveCapabilities?.enabled}
+                value={requestedSource}
+                onChange={changeSource}
+              />
+            )}
+            {source !== 'imported' && (
+              <TraceArchiveAction
+                traceId={traceId}
+                archived={source === 'archive'}
+                enabled={archiveCapabilities?.enabled}
+                onArchived={() => refetch?.()}
+                onDeleted={() => changeSource('live')}
+              />
+            )}
+            <Button
+              icon={<FlagOutlined />}
+              onClick={() => {
+                compareSelection.setBaseline(sourceRef);
+                message.success(t('traceCompare.baselineSet'));
+              }}
+            >
+              {t('traceCompare.setBaseline')}
+            </Button>
+            <Button
+              type="primary"
+              icon={<DiffOutlined />}
+              onClick={() => {
+                compareSelection.setBaseline(sourceRef);
+                navigate('/traces');
+              }}
+            >
+              {t('traceCompare.compareAnother')}
+            </Button>
+          </Space>
+        ) : null}
       />
 
       <AsyncBoundary
         loading={traceLoading}
         error={currentError}
         onRetry={refetch}
+        errorTitle={source === 'imported' ? t('traceImport.expiredTitle') : undefined}
+        errorDescription={source === 'imported' ? t('traceImport.expired') : undefined}
         empty={!traceLoading && !summary}
         emptyText={t('traceDetail.notFound')}
       >
@@ -229,7 +305,11 @@ export default function TraceDetailPage() {
               extra={<Text type="secondary" style={{ fontSize: 12 }}>{t('traceDetail.clickSpanHint')}</Text>}
             >
               <Tabs
-                defaultActiveKey="timeline"
+                activeKey={activeTab}
+                onChange={(key) => {
+                  setActiveTab(key);
+                  if (key === 'json') setJsonVisited(true);
+                }}
                 items={[
                   {
                     key: 'timeline',
@@ -253,6 +333,17 @@ export default function TraceDetailPage() {
                     key: 'statistics',
                     label: t('traceDetail.tabStatistics'),
                     children: <TraceStatistics analysis={analysis} onSelectSpan={selectSpan} />,
+                  },
+                  {
+                    key: 'json',
+                    label: t('traceDetail.tabJson'),
+                    children: jsonVisited ? (
+                      <TraceJsonPanel
+                        traceId={traceId}
+                        source={source === 'archive' ? 'archive' : requestedSource}
+                        traceDocument={sourceDocument}
+                      />
+                    ) : null,
                   },
                   {
                     key: 'logs',

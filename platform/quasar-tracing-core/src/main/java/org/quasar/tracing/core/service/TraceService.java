@@ -11,8 +11,10 @@ import java.util.stream.Collectors;
 import org.quasar.tracing.clickhouse.entity.LogEntity;
 import org.quasar.tracing.clickhouse.entity.SpanEntity;
 import org.quasar.tracing.clickhouse.entity.TraceSummaryEntity;
+import org.quasar.tracing.clickhouse.entity.TraceArchiveManifestEntity;
 import org.quasar.tracing.clickhouse.mapper.LogMapper;
 import org.quasar.tracing.clickhouse.mapper.SpanMapper;
+import org.quasar.tracing.clickhouse.mapper.TraceArchiveMapper;
 import org.quasar.tracing.clickhouse.mapper.TraceMapper;
 import org.quasar.tracing.clickhouse.mapper.TraceSearchFilter;
 import org.quasar.tracing.common.api.QTPageDTO;
@@ -23,11 +25,13 @@ import org.quasar.tracing.common.dto.TraceAttributeConditionDTO;
 import org.quasar.tracing.common.dto.TraceDetailDTO;
 import org.quasar.tracing.common.dto.TraceSpanSelectorDTO;
 import org.quasar.tracing.common.dto.TraceSummaryDTO;
+import org.quasar.tracing.common.dto.TraceSource;
 import org.quasar.tracing.common.util.TimeWindowUtil;
+import org.quasar.tracing.core.config.ArchiveProperties;
 import org.quasar.tracing.core.config.QueryProperties;
 import org.quasar.tracing.core.exception.InvalidQueryException;
 import org.quasar.tracing.core.exception.NotFoundException;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /**
@@ -40,15 +44,34 @@ import org.springframework.stereotype.Service;
  * @since 2026/06/09
  */
 @Service
-@RequiredArgsConstructor
 public class TraceService {
 
     private static final double NANOS_PER_MILLI = 1_000_000.0;
 
     private final TraceMapper traceMapper;
     private final SpanMapper spanMapper;
+    private final TraceArchiveMapper traceArchiveMapper;
     private final LogMapper logMapper;
     private final QueryProperties query;
+    private final ArchiveProperties archiveProperties;
+
+    @Autowired
+    public TraceService(TraceMapper traceMapper, SpanMapper spanMapper,
+            TraceArchiveMapper traceArchiveMapper, LogMapper logMapper,
+            QueryProperties query, ArchiveProperties archiveProperties) {
+        this.traceMapper = traceMapper;
+        this.spanMapper = spanMapper;
+        this.traceArchiveMapper = traceArchiveMapper;
+        this.logMapper = logMapper;
+        this.query = query;
+        this.archiveProperties = archiveProperties;
+    }
+
+    TraceService(TraceMapper traceMapper, SpanMapper spanMapper,
+            LogMapper logMapper, QueryProperties query) {
+        this(traceMapper, spanMapper, null, logMapper, query,
+                new ArchiveProperties(false, null, null));
+    }
 
     public QTPageDTO<TraceSummaryDTO> search(String service, String operation, String status, String environment,
             String namespace, String k8sNamespace, String k8sPodName, String k8sNodeName, String serviceInstanceId,
@@ -56,6 +79,22 @@ public class TraceService {
             List<TraceAttributeConditionDTO> attributeConditions,
             String spanService, String spanOperation, String spanStatus,
             String sort, String order, Integer limit, Integer offset) {
+        return search(service, operation, status, environment, namespace, k8sNamespace,
+                k8sPodName, k8sNodeName, serviceInstanceId, minDurationMs, maxDurationMs,
+                from, to, q, attributeConditions, spanService, spanOperation, spanStatus,
+                sort, order, limit, offset, TraceSource.LIVE);
+    }
+
+    public QTPageDTO<TraceSummaryDTO> search(String service, String operation, String status, String environment,
+            String namespace, String k8sNamespace, String k8sPodName, String k8sNodeName, String serviceInstanceId,
+            Double minDurationMs, Double maxDurationMs, Long from, Long to, String q,
+            List<TraceAttributeConditionDTO> attributeConditions,
+            String spanService, String spanOperation, String spanStatus,
+            String sort, String order, Integer limit, Integer offset, TraceSource source) {
+        TraceSource effectiveSource = source == null || source == TraceSource.AUTO ? TraceSource.LIVE : source;
+        if (effectiveSource == TraceSource.ARCHIVE && !archiveProperties.isEnabled()) {
+            throw new NotFoundException("TRACE_ARCHIVE_FEATURE_DISABLED");
+        }
         TraceSpanSelectorDTO spanSelector = normalizeSpanSelector(spanService, spanOperation, spanStatus);
         Long toMs = TimeWindowUtil.resolveTo(to);
         Long fromMs = TimeWindowUtil.resolveFrom(from, toMs);
@@ -68,21 +107,53 @@ public class TraceService {
             msToNs(minDurationMs), msToNs(maxDurationMs), fromMs, toMs, q,
             sort, order, effectiveLimit, effectiveOffset,
             attributeConditions == null ? List.of() : attributeConditions,
-            spanSelector);
+            spanSelector, effectiveSource.value());
 
-        List<TraceSummaryDTO> records = traceMapper.search(filter).stream()
+        List<TraceSummaryEntity> rows = effectiveSource == TraceSource.ARCHIVE
+                ? traceArchiveMapper.search(filter) : traceMapper.search(filter);
+        Long total = effectiveSource == TraceSource.ARCHIVE
+                ? traceArchiveMapper.countSearch(filter) : traceMapper.countSearch(filter);
+        List<TraceSummaryDTO> records = rows.stream()
             .map(TraceService::toSummaryDto)
             .toList();
-        Long total = traceMapper.countSearch(filter);
         return QTPageDTO.of(records, total, effectiveLimit, effectiveOffset);
     }
 
     public TraceDetailDTO detail(String traceId) {
-        List<SpanEntity> rows = spanMapper.selectByTraceId(traceId);
+        return detail(traceId, TraceSource.AUTO);
+    }
+
+    public TraceDetailDTO detail(String traceId, TraceSource source) {
+        TraceSource requested = source == null ? TraceSource.AUTO : source;
+        List<SpanEntity> rows = requested == TraceSource.ARCHIVE
+                ? List.of() : spanMapper.selectByTraceId(traceId);
+        TraceSource resolved = TraceSource.LIVE;
+        Long archivedAt = null;
+        if ((rows == null || rows.isEmpty()) && requested != TraceSource.LIVE) {
+            if (!archiveProperties.isEnabled() || traceArchiveMapper == null) {
+                if (requested == TraceSource.ARCHIVE) {
+                    throw new NotFoundException("TRACE_ARCHIVE_FEATURE_DISABLED");
+                }
+            } else {
+                TraceArchiveManifestEntity latest = traceArchiveMapper.selectLatest(traceId);
+                if (latest != null && "ACTIVE".equals(latest.getState())
+                        && latest.getExpiresAt() != null
+                        && latest.getExpiresAt() > System.currentTimeMillis()) {
+                    rows = traceArchiveMapper.selectGeneration(traceId, latest.getGeneration());
+                    resolved = TraceSource.ARCHIVE;
+                    archivedAt = latest.getArchivedAt();
+                }
+            }
+        }
         if (rows.isEmpty()) {
             throw new NotFoundException("Trace not found: " + traceId);
         }
 
+        return buildDetail(traceId, rows, resolved, archivedAt);
+    }
+
+    private TraceDetailDTO buildDetail(String traceId, List<SpanEntity> rows,
+            TraceSource source, Long archivedAt) {
         SpanEntity root = rows.stream().min(Comparator.comparingLong(SpanEntity::getTimestamp)).orElseThrow();
         Long rootTs = root.getTimestamp();
         Map<String, SpanEntity> byId = rows.stream()
@@ -95,7 +166,7 @@ public class TraceService {
             rootTs, root.getDuration(), rows.size(), errorCount,
             errorCount > 0 ? "Error" : "Ok", root.getEnvironment(), root.getHost(),
             root.getServiceInstanceId(), root.getK8sNamespace(), root.getK8sPodName(),
-            root.getK8sPodUid(), root.getK8sNodeName(), services);
+            root.getK8sPodUid(), root.getK8sNodeName(), services, source, archivedAt);
         return new TraceDetailDTO(summary, spans, services);
     }
 
@@ -187,6 +258,8 @@ public class TraceService {
             e.getStartTime(), e.getDurationNs(), e.getSpanCount(), e.getErrorCount(),
             e.getStatus(), e.getEnvironment(), e.getHost(),
             e.getServiceInstanceId(), e.getK8sNamespace(), e.getK8sPodName(),
-            e.getK8sPodUid(), e.getK8sNodeName(), null);
+            e.getK8sPodUid(), e.getK8sNodeName(), null,
+            e.getSource() == null ? TraceSource.LIVE : TraceSource.fromValue(e.getSource()),
+            e.getArchivedAt());
     }
 }

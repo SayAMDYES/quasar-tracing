@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next';
 import { AUTO_REFRESH_OPTIONS, useApp } from '@/context/AppContext';
 import TimeRangePicker from '@/components/TimeRangePicker';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
+import ThemeSwitcher from '@/components/ThemeSwitcher';
 
 const TRACE_ID_RE = /^[0-9a-f]{32}$/i;
 
@@ -138,6 +139,7 @@ export default function TopBar() {
             <DownOutlined className="auto-refresh-button-caret" />
           </Button>
         </Dropdown>
+        <ThemeSwitcher />
         <LanguageSwitcher />
         <Tooltip title={t('common.refresh')}>
           <Button icon={<ReloadOutlined />} onClick={refreshRange} />

@@ -7,9 +7,25 @@
 import { Card, Tooltip } from 'antd';
 import { ArrowUpOutlined, ArrowDownOutlined } from '@ant-design/icons';
 import EChart from './EChart';
-import { brand, status } from '@/theme/tokens';
+import { useThemeMode } from '@/context/ThemeContext';
+
+function resolveTone(color, tokens) {
+  const runtime = {
+    'var(--brand-primary)': tokens.brand.primary,
+    'var(--brand-active)': tokens.brand.primaryActive,
+    'var(--brand-strong)': tokens.brand.strong,
+    'var(--ok)': tokens.status.ok,
+    'var(--error)': tokens.status.error,
+    'var(--warn)': tokens.status.warn,
+    'var(--info)': tokens.status.info,
+    'var(--percentile-p50)': tokens.percentileColors.p50,
+  };
+  return runtime[color] || color || tokens.brand.primary;
+}
 
 function Sparkline({ data, color }) {
+  const { tokens } = useThemeMode();
+  const runtimeColor = resolveTone(color, tokens);
   const option = {
     grid: { left: 0, right: 0, top: 4, bottom: 0 },
     xAxis: { type: 'category', show: false, data: data.map((_, i) => i) },
@@ -25,7 +41,7 @@ function Sparkline({ data, color }) {
         data,
         smooth: true,
         symbol: 'none',
-        lineStyle: { width: 2, color },
+        lineStyle: { width: 2, color: runtimeColor },
         areaStyle: {
           color: {
             type: 'linear',
@@ -34,8 +50,8 @@ function Sparkline({ data, color }) {
             x2: 0,
             y2: 1,
             colorStops: [
-              { offset: 0, color: `${color}33` },
-              { offset: 1, color: `${color}00` },
+              { offset: 0, color: `${runtimeColor}33` },
+              { offset: 1, color: `${runtimeColor}00` },
             ],
           },
         },
@@ -49,13 +65,14 @@ export default function StatCard({
   label,
   value,
   suffix,
-  tone = brand.primary,
+  tone,
   delta,
   deltaGood,
   spark,
   hint,
 }) {
-  const deltaColor = delta == null ? undefined : deltaGood ? status.ok : status.error;
+  const { tokens } = useThemeMode();
+  const deltaColor = delta == null ? undefined : deltaGood ? tokens.status.ok : tokens.status.error;
   const DeltaIcon = delta >= 0 ? ArrowUpOutlined : ArrowDownOutlined;
 
   return (

@@ -2,6 +2,7 @@ package org.quasar.tracing.core.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
@@ -9,11 +10,15 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.quasar.tracing.clickhouse.entity.SpanEntity;
+import org.quasar.tracing.clickhouse.entity.TraceArchiveManifestEntity;
 import org.quasar.tracing.clickhouse.mapper.LogMapper;
 import org.quasar.tracing.clickhouse.mapper.SpanMapper;
+import org.quasar.tracing.clickhouse.mapper.TraceArchiveMapper;
 import org.quasar.tracing.clickhouse.mapper.TraceMapper;
 import org.quasar.tracing.common.dto.SpanDTO;
 import org.quasar.tracing.common.dto.TraceDetailDTO;
+import org.quasar.tracing.common.dto.TraceSource;
+import org.quasar.tracing.core.config.ArchiveProperties;
 import org.quasar.tracing.core.config.QueryProperties;
 import org.quasar.tracing.core.exception.NotFoundException;
 
@@ -62,6 +67,28 @@ class TraceServiceDetailTest {
     void throwsNotFoundForUnknownTrace() {
         when(spanMapper.selectByTraceId("missing")).thenReturn(List.of());
         assertThatThrownBy(() -> service.detail("missing")).isInstanceOf(NotFoundException.class);
+    }
+
+    @Test
+    void resolvesExplicitArchiveWithoutReadingLiveSpans() {
+        TraceArchiveMapper archiveMapper = Mockito.mock(TraceArchiveMapper.class);
+        TraceArchiveManifestEntity manifest = new TraceArchiveManifestEntity();
+        manifest.setState("ACTIVE");
+        manifest.setGeneration("generation-1");
+        manifest.setArchivedAt(1_720_000_000_000L);
+        manifest.setExpiresAt(System.currentTimeMillis() + 60_000L);
+        when(archiveMapper.selectLatest("t1")).thenReturn(manifest);
+        when(archiveMapper.selectGeneration("t1", "generation-1"))
+            .thenReturn(List.of(root(), child()));
+        TraceService archiveService = new TraceService(traceMapper, spanMapper, archiveMapper,
+            logMapper, new QueryProperties(50, 100, 1000),
+            new ArchiveProperties(true, 180, 20_000));
+
+        TraceDetailDTO detail = archiveService.detail("t1", TraceSource.ARCHIVE);
+
+        assertThat(detail.getSummary().getSource()).isEqualTo(TraceSource.ARCHIVE);
+        assertThat(detail.getSummary().getArchivedAt()).isEqualTo(1_720_000_000_000L);
+        verifyNoInteractions(spanMapper);
     }
 
     private static SpanDTO span(TraceDetailDTO detail, String spanId) {

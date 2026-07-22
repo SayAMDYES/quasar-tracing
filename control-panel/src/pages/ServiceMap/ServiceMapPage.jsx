@@ -14,6 +14,7 @@ import EChart from '@/components/EChart';
 import AsyncBoundary from '@/components/AsyncBoundary';
 import ServicePanel from './ServicePanel';
 import { useApp } from '@/context/AppContext';
+import { useThemeMode } from '@/context/ThemeContext';
 import useFetch from '@/hooks/useFetch';
 import useInvestigationRange from '@/hooks/useInvestigationRange';
 import { fetchDependencies } from '@/api';
@@ -22,6 +23,7 @@ import { buildServiceGraph } from '@/charts/options';
 const { Text } = Typography;
 
 export default function ServiceMapPage() {
+  const { chartTheme } = useThemeMode();
   const { autoRefreshRevision } = useApp();
   const { t, i18n } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -41,9 +43,9 @@ export default function ServiceMapPage() {
   }, [urlFocus]);
 
   const option = useMemo(
-    () => (data ? buildServiceGraph(data.nodes, data.edges, selected) : null),
+    () => (data ? buildServiceGraph(data.nodes, data.edges, selected, chartTheme) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [data, selected, i18n.language],
+    [data, selected, i18n.language, chartTheme],
   );
 
   const onEvents = useMemo(

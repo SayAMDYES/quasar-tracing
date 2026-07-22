@@ -44,6 +44,7 @@ import EChart from '@/components/EChart';
 import AsyncBoundary from '@/components/AsyncBoundary';
 import { ServiceBadge } from '@/components/tags';
 import { useApp } from '@/context/AppContext';
+import { useThemeMode } from '@/context/ThemeContext';
 import useFetch from '@/hooks/useFetch';
 import useInvestigationRange from '@/hooks/useInvestigationRange';
 import { fetchMetrics, fetchFilters } from '@/api';
@@ -72,8 +73,8 @@ const metricTone = {
 const surfaceCardStyle = {
   height: '100%',
   borderRadius: 14,
-  border: '1px solid rgba(16, 24, 40, 0.08)',
-  boxShadow: '0 10px 28px rgba(16, 24, 40, 0.06)',
+  border: '1px solid var(--border)',
+  boxShadow: 'var(--shadow-card)',
 };
 
 function MetricStyles() {
@@ -93,7 +94,7 @@ function MetricStyles() {
           border-color: rgba(242, 106, 27, 0.16) !important;
           background:
             linear-gradient(135deg, rgba(242, 106, 27, 0.045), rgba(46, 125, 209, 0.035)),
-            #ffffff;
+            var(--surface);
         }
 
         .metrics-dashboard-toolbar {
@@ -101,7 +102,7 @@ function MetricStyles() {
           border-color: rgba(242, 106, 27, 0.16) !important;
           background:
             linear-gradient(135deg, rgba(242, 106, 27, 0.035), rgba(46, 125, 209, 0.025)),
-            #ffffff;
+            var(--surface);
         }
 
         .metrics-dashboard-toolbar .ant-card-body {
@@ -164,7 +165,7 @@ function MetricStyles() {
         .metrics-dashboard-kpi:hover {
           transform: translateY(-2px);
           border-color: rgba(242, 106, 27, 0.22) !important;
-          box-shadow: 0 14px 32px rgba(16, 24, 40, 0.10) !important;
+          box-shadow: var(--shadow-pop) !important;
         }
 
         .metrics-dashboard-kpi-icon {
@@ -178,9 +179,9 @@ function MetricStyles() {
         }
 
         .metrics-dashboard-mini-chart {
-          border: 1px solid rgba(16, 24, 40, 0.08);
+          border: 1px solid var(--border);
           border-radius: 12px;
-          background: #ffffff;
+          background: var(--surface);
         }
 
         .metrics-dashboard-light-card {
@@ -193,7 +194,7 @@ function MetricStyles() {
         .metrics-dashboard-light-card:hover {
           transform: translateY(-2px);
           border-color: rgba(242, 106, 27, 0.24) !important;
-          box-shadow: 0 14px 32px rgba(16, 24, 40, 0.10) !important;
+          box-shadow: var(--shadow-pop) !important;
         }
 
         .metrics-instance-expanded {
@@ -631,6 +632,7 @@ function JvmMetricCard({ jvm }) {
 }
 
 export default function MetricsPage() {
+  const { chartTheme } = useThemeMode();
   const { autoRefreshRevision } = useApp();
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
@@ -710,12 +712,12 @@ export default function MetricsPage() {
     if (!data) return null;
     const timeExtent = { from: effectiveRange.from, to: effectiveRange.to };
     return {
-      throughput: buildThroughputChart(series, data.step, timeExtent),
-      errorRate: buildErrorRateChart(series, data.step, timeExtent),
-      latency: buildLatencyChart(series, data.step, timeExtent),
+      throughput: buildThroughputChart(series, data.step, timeExtent, chartTheme),
+      errorRate: buildErrorRateChart(series, data.step, timeExtent, chartTheme),
+      latency: buildLatencyChart(series, data.step, timeExtent, chartTheme),
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, series, effectiveRange.from, effectiveRange.to, i18n.language]);
+  }, [data, series, effectiveRange.from, effectiveRange.to, i18n.language, chartTheme]);
 
   const current = data?.summary?.current ? {
     ...data.summary.current,

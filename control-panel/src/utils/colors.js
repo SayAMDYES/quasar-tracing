@@ -16,9 +16,9 @@ function hashString(str) {
 }
 
 /** Stable categorical color for a service name. */
-export function serviceColor(serviceName) {
-  if (!serviceName) return chartPalette[chartPalette.length - 1];
-  return chartPalette[hashString(serviceName) % chartPalette.length];
+export function serviceColor(serviceName, palette = chartPalette) {
+  if (!serviceName) return palette[palette.length - 1];
+  return palette[hashString(serviceName) % palette.length];
 }
 
 /** Build a { service: color } map for legends. */

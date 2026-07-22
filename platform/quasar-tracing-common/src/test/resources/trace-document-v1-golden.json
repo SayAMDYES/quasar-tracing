@@ -1,0 +1,254 @@
+[
+  {
+    "traceId": "00000000000000000000000000000001",
+    "startTimeUnixNano": "18446744073709551616",
+    "durationNano": "10",
+    "root": {
+      "spanId": "0000000000000001",
+      "serviceName": "支付-service",
+      "name": "处理订单",
+      "selection": "natural"
+    },
+    "services": [
+      "支付-service"
+    ],
+    "warnings": [],
+    "spans": [
+      {
+        "traceId": "00000000000000000000000000000001",
+        "spanId": "0000000000000001",
+        "parentSpanId": "",
+        "traceState": "vendor=value",
+        "serviceName": "支付-service",
+        "name": "处理订单",
+        "kind": "SERVER",
+        "startTimeUnixNano": "18446744073709551616",
+        "durationNano": "10",
+        "status": {
+          "code": "OK",
+          "message": "完成"
+        },
+        "resourceAttributes": {
+          "service.version": "1.0",
+          "zone": "cn-south"
+        },
+        "scope": {
+          "name": "otel.scope",
+          "version": "1.2.3"
+        },
+        "spanAttributes": {
+          "10": "ten",
+          "2": "two",
+          "http.method": "POST",
+          "说明": "值"
+        },
+        "events": [
+          {
+            "timeUnixNano": "18446744073709551617",
+            "name": "事件",
+            "attributes": {
+              "a": "first",
+              "z": "last"
+            }
+          }
+        ],
+        "links": [
+          {
+            "traceId": "00000000000000000000000000000002",
+            "spanId": "0000000000000002",
+            "traceState": "linked=true",
+            "attributes": {
+              "a": "first",
+              "z": "last"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "traceId": "00000000000000000000000000000002",
+    "startTimeUnixNano": "90",
+    "durationNano": "20",
+    "root": {
+      "spanId": "000000000000000c",
+      "serviceName": "alpha-service",
+      "name": "earlier",
+      "selection": "natural"
+    },
+    "services": [
+      "alpha-service",
+      "支付-service"
+    ],
+    "warnings": [
+      {
+        "code": "MULTIPLE_ROOTS",
+        "spanId": "",
+        "message": "Trace has multiple root candidates"
+      }
+    ],
+    "spans": [
+      {
+        "traceId": "00000000000000000000000000000002",
+        "spanId": "000000000000000c",
+        "parentSpanId": "",
+        "traceState": "",
+        "serviceName": "alpha-service",
+        "name": "earlier",
+        "kind": "",
+        "startTimeUnixNano": "90",
+        "durationNano": "5",
+        "status": {
+          "code": "",
+          "message": ""
+        },
+        "resourceAttributes": {},
+        "scope": {
+          "name": "",
+          "version": ""
+        },
+        "spanAttributes": {},
+        "events": [],
+        "links": []
+      },
+      {
+        "traceId": "00000000000000000000000000000002",
+        "spanId": "000000000000000b",
+        "parentSpanId": "",
+        "traceState": "",
+        "serviceName": "支付-service",
+        "name": "later",
+        "kind": "",
+        "startTimeUnixNano": "100",
+        "durationNano": "10",
+        "status": {
+          "code": "",
+          "message": ""
+        },
+        "resourceAttributes": {},
+        "scope": {
+          "name": "",
+          "version": ""
+        },
+        "spanAttributes": {},
+        "events": [],
+        "links": []
+      }
+    ]
+  },
+  {
+    "traceId": "00000000000000000000000000000003",
+    "startTimeUnixNano": "200",
+    "durationNano": "30",
+    "root": {
+      "spanId": "0000000000000015",
+      "serviceName": "orphan-service",
+      "name": "orphan",
+      "selection": "orphan"
+    },
+    "services": [
+      "orphan-service"
+    ],
+    "warnings": [
+      {
+        "code": "MISSING_PARENT",
+        "spanId": "0000000000000015",
+        "message": "Parent span not found: 000000000000001d"
+      }
+    ],
+    "spans": [
+      {
+        "traceId": "00000000000000000000000000000003",
+        "spanId": "0000000000000015",
+        "parentSpanId": "000000000000001d",
+        "traceState": "",
+        "serviceName": "orphan-service",
+        "name": "orphan",
+        "kind": "",
+        "startTimeUnixNano": "200",
+        "durationNano": "30",
+        "status": {
+          "code": "",
+          "message": ""
+        },
+        "resourceAttributes": {},
+        "scope": {
+          "name": "",
+          "version": ""
+        },
+        "spanAttributes": {},
+        "events": [],
+        "links": []
+      }
+    ]
+  },
+  {
+    "traceId": "00000000000000000000000000000004",
+    "startTimeUnixNano": "300",
+    "durationNano": "20",
+    "root": {
+      "spanId": "0000000000000020",
+      "serviceName": "cycle-service",
+      "name": "representative",
+      "selection": "cycle"
+    },
+    "services": [
+      "cycle-service"
+    ],
+    "warnings": [
+      {
+        "code": "PARENT_CYCLE",
+        "spanId": "0000000000000020",
+        "message": "Parent cycle detected"
+      }
+    ],
+    "spans": [
+      {
+        "traceId": "00000000000000000000000000000004",
+        "spanId": "0000000000000020",
+        "parentSpanId": "000000000000001f",
+        "traceState": "",
+        "serviceName": "cycle-service",
+        "name": "representative",
+        "kind": "",
+        "startTimeUnixNano": "300",
+        "durationNano": "5",
+        "status": {
+          "code": "",
+          "message": ""
+        },
+        "resourceAttributes": {},
+        "scope": {
+          "name": "",
+          "version": ""
+        },
+        "spanAttributes": {},
+        "events": [],
+        "links": []
+      },
+      {
+        "traceId": "00000000000000000000000000000004",
+        "spanId": "000000000000001f",
+        "parentSpanId": "0000000000000020",
+        "traceState": "",
+        "serviceName": "cycle-service",
+        "name": "later",
+        "kind": "",
+        "startTimeUnixNano": "310",
+        "durationNano": "10",
+        "status": {
+          "code": "",
+          "message": ""
+        },
+        "resourceAttributes": {},
+        "scope": {
+          "name": "",
+          "version": ""
+        },
+        "spanAttributes": {},
+        "events": [],
+        "links": []
+      }
+    ]
+  }
+]

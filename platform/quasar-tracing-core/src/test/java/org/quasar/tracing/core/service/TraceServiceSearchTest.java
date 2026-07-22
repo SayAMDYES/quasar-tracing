@@ -13,11 +13,15 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.quasar.tracing.clickhouse.mapper.LogMapper;
 import org.quasar.tracing.clickhouse.mapper.SpanMapper;
+import org.quasar.tracing.clickhouse.mapper.TraceArchiveMapper;
 import org.quasar.tracing.clickhouse.mapper.TraceMapper;
 import org.quasar.tracing.clickhouse.mapper.TraceSearchFilter;
 import org.quasar.tracing.common.dto.TraceAttributeConditionDTO;
+import org.quasar.tracing.common.dto.TraceSource;
+import org.quasar.tracing.core.config.ArchiveProperties;
 import org.quasar.tracing.core.config.QueryProperties;
 import org.quasar.tracing.core.exception.InvalidQueryException;
+import org.quasar.tracing.core.exception.NotFoundException;
 
 /**
  * Unit tests for {@link TraceService#search} with a mocked {@link TraceMapper}.
@@ -139,6 +143,37 @@ class TraceServiceSearchTest {
             null, null, "unknown", null, null, null, null))
             .isInstanceOf(InvalidQueryException.class)
             .hasMessage("Span status must be error or ok");
+
+        verifyNoInteractions(mapper);
+    }
+
+    @Test
+    void routesArchiveSearchOnlyToArchiveMapper() {
+        TraceArchiveMapper archiveMapper = Mockito.mock(TraceArchiveMapper.class);
+        when(archiveMapper.search(any())).thenReturn(List.of());
+        when(archiveMapper.countSearch(any())).thenReturn(0L);
+        TraceService archiveService = new TraceService(mapper, Mockito.mock(SpanMapper.class),
+            archiveMapper, Mockito.mock(LogMapper.class), new QueryProperties(50, 100, 1000),
+            new ArchiveProperties(true, 180, 20_000));
+
+        archiveService.search(null, null, null, null, null, null, null, null, null,
+            null, null, null, null, null, null, null, null, null,
+            null, null, null, null, TraceSource.ARCHIVE);
+
+        ArgumentCaptor<TraceSearchFilter> captor = ArgumentCaptor.forClass(TraceSearchFilter.class);
+        verify(archiveMapper).search(captor.capture());
+        verify(archiveMapper).countSearch(any());
+        verifyNoInteractions(mapper);
+        assertThat(captor.getValue().getSource()).isEqualTo("archive");
+    }
+
+    @Test
+    void rejectsArchiveSearchWhileFeatureIsDisabled() {
+        assertThatThrownBy(() -> service.search(null, null, null, null, null, null, null, null, null,
+            null, null, null, null, null, null, null, null, null,
+            null, null, null, null, TraceSource.ARCHIVE))
+            .isInstanceOf(NotFoundException.class)
+            .hasMessage("TRACE_ARCHIVE_FEATURE_DISABLED");
 
         verifyNoInteractions(mapper);
     }

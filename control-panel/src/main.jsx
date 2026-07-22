@@ -13,8 +13,11 @@ import enUS from 'antd/locale/en_US';
 import zhCN from 'antd/locale/zh_CN';
 import { useTranslation } from 'react-i18next';
 import i18n, { normalizeLang } from '@/i18n';
-import { antdTheme } from '@/theme/antdTheme';
+import { createAntdTheme } from '@/theme/antdTheme';
 import { AppProvider } from '@/context/AppContext';
+import { ImportedTraceProvider } from '@/context/ImportedTraceContext';
+import { ThemeProvider, useThemeMode } from '@/context/ThemeContext';
+import { TraceCompareSelectionProvider } from '@/context/TraceCompareSelectionContext';
 import App from './App';
 import './styles/global.css';
 
@@ -23,13 +26,18 @@ const ANTD_LOCALES = { en: enUS, 'zh-CN': zhCN };
 // Keeps the Ant Design locale (pagination, table, empty states, …) in sync with i18n.
 function Root() {
   const { i18n: instance } = useTranslation();
+  const { effectiveMode, tokens } = useThemeMode();
   const locale = ANTD_LOCALES[normalizeLang(instance.language)];
   return (
-    <ConfigProvider theme={antdTheme} locale={locale}>
+    <ConfigProvider theme={createAntdTheme(effectiveMode, tokens)} locale={locale}>
       <AntApp>
         <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <AppProvider>
-            <App />
+            <ImportedTraceProvider>
+              <TraceCompareSelectionProvider>
+                <App />
+              </TraceCompareSelectionProvider>
+            </ImportedTraceProvider>
           </AppProvider>
         </BrowserRouter>
       </AntApp>
@@ -39,7 +47,9 @@ function Root() {
 
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <Root />
+    <ThemeProvider>
+      <Root />
+    </ThemeProvider>
   </React.StrictMode>,
 );
 

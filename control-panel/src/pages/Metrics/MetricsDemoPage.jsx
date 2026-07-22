@@ -40,6 +40,7 @@ import { useTranslation } from 'react-i18next';
 import EChart from '@/components/EChart';
 import { ServiceBadge } from '@/components/tags';
 import { brand, neutral, status } from '@/theme/tokens';
+import { useThemeMode } from '@/context/ThemeContext';
 import { formatInt, formatMs, formatNumber, formatPercent } from '@/utils/format';
 
 const { Text, Title } = Typography;
@@ -623,7 +624,8 @@ function buildLineChart({ fields, unit, min = 0, threshold, dark = false }) {
   };
 }
 
-function buildLatencyHeatmap() {
+function buildLatencyHeatmap(tokens) {
+  const { neutral: runtimeNeutral } = tokens;
   const buckets = [100, 200, 400, 800, 1200, 1800];
   const data = [];
   SERIES.forEach((p, x) => {
@@ -642,14 +644,14 @@ function buildLatencyHeatmap() {
     xAxis: {
       type: 'category',
       data: SERIES.map((p) => fmtTime(p.time)),
-      axisLabel: { color: neutral.textMuted, fontFamily: 'var(--font-mono)', fontSize: 10, interval: 7 },
+      axisLabel: { color: runtimeNeutral.textMuted, fontFamily: 'var(--font-mono)', fontSize: 10, interval: 7 },
       axisTick: { show: false },
-      axisLine: { lineStyle: { color: neutral.border } },
+      axisLine: { lineStyle: { color: runtimeNeutral.border } },
     },
     yAxis: {
       type: 'category',
       data: buckets.map((b) => `≤${b}ms`),
-      axisLabel: { color: neutral.textMuted, fontFamily: 'var(--font-mono)', fontSize: 10 },
+      axisLabel: { color: runtimeNeutral.textMuted, fontFamily: 'var(--font-mono)', fontSize: 10 },
       axisTick: { show: false },
       axisLine: { show: false },
     },
@@ -657,9 +659,11 @@ function buildLatencyHeatmap() {
       min: 0,
       max: 11,
       show: false,
-      inRange: { color: ['#FFF7ED', '#FDBA74', '#F26A1B', '#B42318'] },
+      inRange: { color: tokens.mode === 'dark'
+        ? ['#2A1D18', '#A94F25', '#FF8A47', '#FF7479']
+        : ['#FFF7ED', '#FDBA74', '#F26A1B', '#B42318'] },
     },
-    series: [{ type: 'heatmap', data, itemStyle: { borderColor: '#FFFFFF', borderWidth: 1 } }],
+    series: [{ type: 'heatmap', data, itemStyle: { borderColor: runtimeNeutral.surface, borderWidth: 1 } }],
   };
 }
 
@@ -884,6 +888,7 @@ function SectionTitle({ title, desc, dark = false, icon }) {
 }
 
 export default function MetricsDemoPage() {
+  const { tokens } = useThemeMode();
   const { t, i18n } = useTranslation();
   const [service, setService] = useState(SERVICES[0]);
   const [endpointMode, setEndpointMode] = useState('unhealthy');
@@ -917,9 +922,9 @@ export default function MetricsDemoPage() {
         threshold: { value: 900, label: '900ms' },
         dark: true,
       }),
-      heatmap: buildLatencyHeatmap(),
+      heatmap: buildLatencyHeatmap(tokens),
     }),
-    [i18n.language, t],
+    [i18n.language, t, tokens],
   );
 
   const endpointColumns = [

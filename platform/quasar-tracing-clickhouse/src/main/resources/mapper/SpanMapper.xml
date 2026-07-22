@@ -12,7 +12,17 @@
                 typeHandler="org.quasar.tracing.clickhouse.handler.StringListTypeHandler"/>
         <result column="eventTimestamps" property="eventTimestamps"
                 typeHandler="org.quasar.tracing.clickhouse.handler.LongListTypeHandler"/>
+        <result column="eventTimeUnixNanos" property="eventTimeUnixNanos"
+                typeHandler="org.quasar.tracing.clickhouse.handler.StringListTypeHandler"/>
         <result column="eventAttributes" property="eventAttributes"
+                typeHandler="org.quasar.tracing.clickhouse.handler.MapListTypeHandler"/>
+        <result column="linkTraceIds" property="linkTraceIds"
+                typeHandler="org.quasar.tracing.clickhouse.handler.StringListTypeHandler"/>
+        <result column="linkSpanIds" property="linkSpanIds"
+                typeHandler="org.quasar.tracing.clickhouse.handler.StringListTypeHandler"/>
+        <result column="linkTraceStates" property="linkTraceStates"
+                typeHandler="org.quasar.tracing.clickhouse.handler.StringListTypeHandler"/>
+        <result column="linkAttributes" property="linkAttributes"
                 typeHandler="org.quasar.tracing.clickhouse.handler.MapListTypeHandler"/>
     </resultMap>
 
@@ -21,18 +31,28 @@
             TraceId       AS traceId,
             SpanId        AS spanId,
             ParentSpanId  AS parentSpanId,
+            TraceState    AS traceState,
             ServiceName   AS serviceName,
             SpanName      AS spanName,
             SpanKind      AS spanKind,
             toUnixTimestamp64Milli(Timestamp)                  AS timestamp,
             Duration      AS duration,
+            toString(toUnixTimestamp64Nano(Timestamp))         AS startTimeUnixNano,
+            toString(Duration)                                 AS durationNano,
             StatusCode    AS statusCode,
             StatusMessage AS statusMessage,
             ResourceAttributes AS resourceAttributes,
+            ScopeName          AS scopeName,
+            ScopeVersion       AS scopeVersion,
             SpanAttributes     AS spanAttributes,
             Events.Name      AS eventNames,
             arrayMap(x -> toUnixTimestamp64Milli(x), Events.Timestamp) AS eventTimestamps,
-            arrayMap(m -> toJSONString(m), Events.Attributes) AS eventAttributes
+            arrayMap(x -> toString(toUnixTimestamp64Nano(x)), Events.Timestamp) AS eventTimeUnixNanos,
+            arrayMap(m -> toJSONString(m), Events.Attributes) AS eventAttributes,
+            Links.TraceId    AS linkTraceIds,
+            Links.SpanId     AS linkSpanIds,
+            Links.TraceState AS linkTraceStates,
+            arrayMap(m -> toJSONString(m), Links.Attributes) AS linkAttributes
         FROM quasar_tracing.spans
         WHERE TraceId = #{traceId}
         ORDER BY Timestamp

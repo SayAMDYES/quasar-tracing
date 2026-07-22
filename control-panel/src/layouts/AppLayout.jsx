@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next';
 import SideNav from './SideNav';
 import TopBar from './TopBar';
 import { APP_VERSION } from '@/config/version';
+import { useThemeMode } from '@/context/ThemeContext';
 
 const { Sider, Header, Content, Footer } = Layout;
 const { useBreakpoint } = Grid;
@@ -61,6 +62,7 @@ function Brand({ collapsed }) {
 }
 
 export default function AppLayout() {
+  const { effectiveMode } = useThemeMode();
   const [collapsed, setCollapsed] = useState(false);
   const screens = useBreakpoint();
   const isNarrow = screens.xs && !screens.md;
@@ -69,7 +71,7 @@ export default function AppLayout() {
   return (
     <Layout style={{ height: '100dvh' }}>
       <Sider
-        theme="light"
+        theme={effectiveMode}
         width={232}
         collapsedWidth={64}
         collapsible

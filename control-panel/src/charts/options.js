@@ -6,20 +6,13 @@
  * @author Quasar
  */
 import dayjs from 'dayjs';
-import i18n from '@/i18n';
-import {
-  brand,
-  status,
-  percentileColors,
-  severityMeta,
-  chartPalette,
-} from '@/theme/tokens';
-import { resolveServiceVisual } from '@/utils/serviceVisuals';
+import i18n from '../i18n/index.js';
+import { createChartTheme, lightTokens } from '../theme/tokens.js';
+import { resolveServiceVisual } from '../utils/serviceVisuals.js';
 
 const FONT = "'IBM Plex Sans', sans-serif";
 const MONO = "'JetBrains Mono', monospace";
-const AXIS_COLOR = '#8A92A0';
-const SPLIT_COLOR = '#EEF0F3';
+const DEFAULT_CHART_THEME = createChartTheme(lightTokens);
 const LINE_MOTION = {
   animationDuration: 1100,
   animationDurationUpdate: 500,
@@ -31,13 +24,13 @@ const grid = (over = {}) => ({ left: 12, right: 16, top: 28, bottom: 8, containL
 const stagger = (step, max) => (index) => Math.min(index * step, max);
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-const tooltipBox = (extra = {}) => ({
-  backgroundColor: '#FFFFFF',
-  borderColor: '#E3E6EA',
+const tooltipBox = (extra = {}, chartTheme = DEFAULT_CHART_THEME) => ({
+  backgroundColor: chartTheme.tooltipBackground,
+  borderColor: chartTheme.tooltipBorder,
   borderWidth: 1,
   padding: [8, 12],
-  textStyle: { color: '#1B1F26', fontFamily: FONT, fontSize: 12 },
-  extraCssText: 'box-shadow: 0 6px 16px rgba(16,24,40,0.10); border-radius: 8px;',
+  textStyle: { color: chartTheme.text, fontFamily: FONT, fontSize: 12 },
+  extraCssText: chartTheme.tooltipShadow,
   confine: true,
   ...extra,
 });
@@ -75,7 +68,7 @@ function looksLikeTimeExtent(value) {
   ));
 }
 
-function timeAxis(step, extentOrOver = {}, maybeOver) {
+function timeAxis(step, extentOrOver = {}, maybeOver, chartTheme = DEFAULT_CHART_THEME) {
   const hasExtent = maybeOver !== undefined || looksLikeTimeExtent(extentOrOver);
   const extent = hasExtent ? extentOrOver : null;
   const over = hasExtent ? (maybeOver || {}) : extentOrOver;
@@ -83,41 +76,41 @@ function timeAxis(step, extentOrOver = {}, maybeOver) {
   const bounds = timeAxisBounds(extent);
   return {
     type: 'time',
-    axisLine: { lineStyle: { color: SPLIT_COLOR } },
+    axisLine: { lineStyle: { color: chartTheme.split } },
     axisTick: { show: false },
     minInterval: step,
     splitNumber: timeAxisSplitNumber(bounds),
-    axisLabel: { color: AXIS_COLOR, fontFamily: MONO, fontSize: 11, hideOverlap: true, formatter: (v) => dayjs(v).format(fmt) },
+    axisLabel: { color: chartTheme.axis, fontFamily: MONO, fontSize: 11, hideOverlap: true, formatter: (v) => dayjs(v).format(fmt) },
     splitLine: { show: false },
     ...bounds,
     ...over,
   };
 }
 
-function valueAxis(name, over = {}) {
+function valueAxis(name, over = {}, chartTheme = DEFAULT_CHART_THEME) {
   return {
     type: 'value',
     name,
-    nameTextStyle: { color: AXIS_COLOR, fontSize: 11, padding: [0, 0, 0, -28] },
+    nameTextStyle: { color: chartTheme.axis, fontSize: 11, padding: [0, 0, 0, -28] },
     axisLine: { show: false },
     axisTick: { show: false },
-    axisLabel: { color: AXIS_COLOR, fontFamily: MONO, fontSize: 11 },
-    splitLine: { lineStyle: { color: SPLIT_COLOR } },
+    axisLabel: { color: chartTheme.axis, fontFamily: MONO, fontSize: 11 },
+    splitLine: { lineStyle: { color: chartTheme.split } },
     ...over,
   };
 }
 
-const orangeArea = {
+const orangeArea = (chartTheme) => ({
   type: 'linear',
   x: 0,
   y: 0,
   x2: 0,
   y2: 1,
   colorStops: [
-    { offset: 0, color: 'rgba(242,106,27,0.26)' },
-    { offset: 1, color: 'rgba(242,106,27,0.02)' },
+    { offset: 0, color: chartTheme.brandAreaStart },
+    { offset: 1, color: chartTheme.brandAreaEnd },
   ],
-};
+});
 
 function durationMs(ns) {
   return ns == null ? 0 : ns / 1e6;
@@ -129,11 +122,11 @@ function formatDurationMs(ms) {
   return `${(ms / 1000).toFixed(2)}s`;
 }
 
-function tracePointColor(trace) {
-  return trace.errorCount > 0 || trace.status === 'error' ? status.error : status.ok;
+function tracePointColor(trace, chartTheme) {
+  return trace.errorCount > 0 || trace.status === 'error' ? chartTheme.error : chartTheme.ok;
 }
 
-export function buildTraceDistributionCharts(traces, timeExtent) {
+export function buildTraceDistributionCharts(traces, timeExtent, chartTheme = DEFAULT_CHART_THEME) {
   const durations = traces.map((trace) => durationMs(trace.durationNs));
   const maxDuration = Math.max(1, ...durations);
   const minDuration = Math.min(...durations, 0);
@@ -165,12 +158,12 @@ export function buildTraceDistributionCharts(traces, timeExtent) {
           `${i18n.t('traceSearch.colSpans')}: ${trace.spanCount || 0} · ${i18n.t('traceSearch.colErrors')}: ${trace.errorCount || 0}`,
         ].join('<br/>');
       },
-    }),
-    xAxis: timeAxis(pickTimeStep(timeExtent?.from, timeExtent?.to), timeExtent),
+    }, chartTheme),
+    xAxis: timeAxis(pickTimeStep(timeExtent?.from, timeExtent?.to), timeExtent, undefined, chartTheme),
     yAxis: valueAxis('ms', {
       min: 0,
-      axisLabel: { color: AXIS_COLOR, fontFamily: MONO, fontSize: 11, formatter: (v) => formatDurationMs(v) },
-    }),
+      axisLabel: { color: chartTheme.axis, fontFamily: MONO, fontSize: 11, formatter: (v) => formatDurationMs(v) },
+    }, chartTheme),
     series: [
       {
         name: i18n.t('traceSearch.distributionScatter'),
@@ -194,9 +187,9 @@ export function buildTraceDistributionCharts(traces, timeExtent) {
             symbol: hasError ? 'diamond' : 'circle',
             symbolSize: 7 + 8 * Math.sqrt(ms / maxDuration),
             itemStyle: {
-              color: tracePointColor(trace),
+              color: tracePointColor(trace, chartTheme),
               opacity: hasError ? 0.9 : 0.72,
-              borderColor: '#FFFFFF',
+              borderColor: chartTheme.background,
               borderWidth: 1,
             },
           };
@@ -215,15 +208,15 @@ export function buildTraceDistributionCharts(traces, timeExtent) {
         if (!bucket) return '';
         return `${formatDurationMs(bucket.start)} - ${formatDurationMs(bucket.end)}<br/>${i18n.t('traceSearch.countTraces', { n: bucket.count })}<br/>${i18n.t('traceSearch.colErrors')}: ${bucket.errors}`;
       },
-    }),
+    }, chartTheme),
     xAxis: {
       type: 'category',
       data: bins.map((bucket) => `${formatDurationMs(bucket.start)}-${formatDurationMs(bucket.end)}`),
-      axisLine: { lineStyle: { color: SPLIT_COLOR } },
+      axisLine: { lineStyle: { color: chartTheme.split } },
       axisTick: { show: false },
-      axisLabel: { color: AXIS_COLOR, fontFamily: MONO, fontSize: 10, interval: 0, rotate: 28 },
+      axisLabel: { color: chartTheme.axis, fontFamily: MONO, fontSize: 10, interval: 0, rotate: 28 },
     },
-    yAxis: valueAxis('', { minInterval: 1 }),
+    yAxis: valueAxis('', { minInterval: 1 }, chartTheme),
     series: [
       {
         name: i18n.t('traceSearch.distributionHistogram'),
@@ -244,8 +237,8 @@ export function buildTraceDistributionCharts(traces, timeExtent) {
             x2: 0,
             y2: 1,
             colorStops: [
-              { offset: 0, color: brand.primary },
-              { offset: 1, color: '#FDBA74' },
+              { offset: 0, color: chartTheme.brand },
+              { offset: 1, color: chartTheme.percentile.p50 },
             ],
           },
           borderRadius: [4, 4, 0, 0],
@@ -258,15 +251,15 @@ export function buildTraceDistributionCharts(traces, timeExtent) {
   return { scatter, histogram };
 }
 
-export function buildThroughputChart(series, step, timeExtent) {
+export function buildThroughputChart(series, step, timeExtent, chartTheme = DEFAULT_CHART_THEME) {
   return {
     grid: grid(),
     tooltip: tooltipBox({
       trigger: 'axis',
       valueFormatter: (v) => `${(+v).toFixed(1)} req/s`,
-    }),
-    xAxis: timeAxis(step, timeExtent),
-    yAxis: valueAxis('req/s'),
+    }, chartTheme),
+    xAxis: timeAxis(step, timeExtent, undefined, chartTheme),
+    yAxis: valueAxis('req/s', {}, chartTheme),
     series: [
       {
         name: i18n.t('chart.throughput'),
@@ -274,20 +267,20 @@ export function buildThroughputChart(series, step, timeExtent) {
         ...LINE_MOTION,
         smooth: true,
         showSymbol: false,
-        lineStyle: { width: 2, color: brand.primary },
-        areaStyle: { color: orangeArea },
+        lineStyle: { width: 2, color: chartTheme.brand },
+        areaStyle: { color: orangeArea(chartTheme) },
         data: series.map((p) => [p.time, p.requests]),
       },
     ],
   };
 }
 
-export function buildErrorRateChart(series, step, timeExtent) {
+export function buildErrorRateChart(series, step, timeExtent, chartTheme = DEFAULT_CHART_THEME) {
   return {
     grid: grid(),
-    tooltip: tooltipBox({ trigger: 'axis', valueFormatter: (v) => `${(+v).toFixed(2)}%` }),
-    xAxis: timeAxis(step, timeExtent),
-    yAxis: valueAxis('%', { min: 0 }),
+    tooltip: tooltipBox({ trigger: 'axis', valueFormatter: (v) => `${(+v).toFixed(2)}%` }, chartTheme),
+    xAxis: timeAxis(step, timeExtent, undefined, chartTheme),
+    yAxis: valueAxis('%', { min: 0 }, chartTheme),
     series: [
       {
         name: i18n.t('chart.errorRate'),
@@ -295,7 +288,7 @@ export function buildErrorRateChart(series, step, timeExtent) {
         ...LINE_MOTION,
         smooth: true,
         showSymbol: false,
-        lineStyle: { width: 2, color: status.error },
+        lineStyle: { width: 2, color: chartTheme.error },
         areaStyle: {
           color: {
             type: 'linear',
@@ -304,16 +297,16 @@ export function buildErrorRateChart(series, step, timeExtent) {
             x2: 0,
             y2: 1,
             colorStops: [
-              { offset: 0, color: 'rgba(229,72,77,0.22)' },
-              { offset: 1, color: 'rgba(229,72,77,0.02)' },
+              { offset: 0, color: chartTheme.errorAreaStart },
+              { offset: 1, color: chartTheme.errorAreaEnd },
             ],
           },
         },
         markLine: {
           silent: true,
           symbol: 'none',
-          lineStyle: { color: status.warn, type: 'dashed' },
-          label: { formatter: `${i18n.t('chart.slo')} 5%`, color: status.warn, fontSize: 10, fontFamily: MONO },
+          lineStyle: { color: chartTheme.warn, type: 'dashed' },
+          label: { formatter: `${i18n.t('chart.slo')} 5%`, color: chartTheme.warn, fontSize: 10, fontFamily: MONO },
           data: [{ yAxis: 5 }],
         },
         data: series.map((p) => [p.time, p.errorRate]),
@@ -322,7 +315,7 @@ export function buildErrorRateChart(series, step, timeExtent) {
   };
 }
 
-export function buildLatencyChart(series, step, timeExtent) {
+export function buildLatencyChart(series, step, timeExtent, chartTheme = DEFAULT_CHART_THEME) {
   const line = (name, key, color, delay) => ({
     name,
     type: 'line',
@@ -343,20 +336,20 @@ export function buildLatencyChart(series, step, timeExtent) {
       icon: 'roundRect',
       itemWidth: 12,
       itemHeight: 4,
-      textStyle: { color: '#5B6573', fontSize: 11, fontFamily: MONO },
+      textStyle: { color: chartTheme.textSecondary, fontSize: 11, fontFamily: MONO },
     },
-    tooltip: tooltipBox({ trigger: 'axis', valueFormatter: (v) => `${(+v).toFixed(0)} ms` }),
-    xAxis: timeAxis(step, timeExtent),
-    yAxis: valueAxis('ms'),
+    tooltip: tooltipBox({ trigger: 'axis', valueFormatter: (v) => `${(+v).toFixed(0)} ms` }, chartTheme),
+    xAxis: timeAxis(step, timeExtent, undefined, chartTheme),
+    yAxis: valueAxis('ms', {}, chartTheme),
     series: [
-      line('p50', 'p50', percentileColors.p50, 0),
-      line('p90', 'p90', percentileColors.p90, 120),
-      line('p99', 'p99', percentileColors.p99, 240),
+      line('p50', 'p50', chartTheme.percentile.p50, 0),
+      line('p90', 'p90', chartTheme.percentile.p90, 120),
+      line('p99', 'p99', chartTheme.percentile.p99, 240),
     ],
   };
 }
 
-export function buildEndpointBar(endpoints, metric = 'p99') {
+export function buildEndpointBar(endpoints, metric = 'p99', chartTheme = DEFAULT_CHART_THEME) {
   const sorted = [...endpoints].sort((a, b) => a[metric] - b[metric]);
   const unit = metric === 'rps' ? ' req/s' : ' ms';
   return {
@@ -365,20 +358,20 @@ export function buildEndpointBar(endpoints, metric = 'p99') {
       trigger: 'axis',
       axisPointer: { type: 'shadow' },
       valueFormatter: (v) => `${(+v).toFixed(metric === 'rps' ? 1 : 0)}${unit}`,
-    }),
+    }, chartTheme),
     xAxis: {
       type: 'value',
       axisLine: { show: false },
       axisTick: { show: false },
       axisLabel: { show: false },
-      splitLine: { lineStyle: { color: SPLIT_COLOR } },
+      splitLine: { lineStyle: { color: chartTheme.split } },
     },
     yAxis: {
       type: 'category',
       data: sorted.map((e) => e.operation),
       axisLine: { show: false },
       axisTick: { show: false },
-      axisLabel: { color: '#5B6573', fontFamily: MONO, fontSize: 11 },
+      axisLabel: { color: chartTheme.textSecondary, fontFamily: MONO, fontSize: 11 },
     },
     series: [
       {
@@ -390,11 +383,11 @@ export function buildEndpointBar(endpoints, metric = 'p99') {
         animationEasing: 'cubicOut',
         animationEasingUpdate: 'cubicInOut',
         barWidth: 12,
-        itemStyle: { color: brand.primary, borderRadius: [0, 4, 4, 0] },
+        itemStyle: { color: chartTheme.brand, borderRadius: [0, 4, 4, 0] },
         label: {
           show: true,
           position: 'right',
-          color: '#5B6573',
+          color: chartTheme.textSecondary,
           fontFamily: MONO,
           fontSize: 11,
           formatter: (p) => `${(+p.value).toFixed(metric === 'rps' ? 1 : 0)}`,
@@ -405,17 +398,17 @@ export function buildEndpointBar(endpoints, metric = 'p99') {
   };
 }
 
-export function buildSeverityHistogram(histogram, step, timeExtent) {
+export function buildSeverityHistogram(histogram, step, timeExtent, chartTheme = DEFAULT_CHART_THEME) {
   const keys = ['INFO', 'DEBUG', 'WARN', 'ERROR', 'FATAL', 'TRACE'].filter((k) =>
     histogram.some((b) => b[k]),
   );
   return {
     grid: grid({ top: 12, bottom: 4 }),
-    tooltip: tooltipBox({ trigger: 'axis', axisPointer: { type: 'shadow' } }),
-    xAxis: timeAxis(step, timeExtent, { axisLine: { show: false } }),
-    yAxis: valueAxis('', { minInterval: 1 }),
+    tooltip: tooltipBox({ trigger: 'axis', axisPointer: { type: 'shadow' } }, chartTheme),
+    xAxis: timeAxis(step, timeExtent, { axisLine: { show: false } }, chartTheme),
+    yAxis: valueAxis('', { minInterval: 1 }, chartTheme),
     series: keys.map((k) => ({
-      name: severityMeta[k].label,
+      name: chartTheme.severity[k].label,
       type: 'bar',
       animationDuration: 900,
       animationDelay: stagger(45, 450),
@@ -425,25 +418,28 @@ export function buildSeverityHistogram(histogram, step, timeExtent) {
       animationEasingUpdate: 'cubicInOut',
       stack: 'sev',
       barMaxWidth: 18,
-      itemStyle: { color: severityMeta[k].color },
+      itemStyle: { color: chartTheme.severity[k].color },
       data: histogram.map((b) => [b.time, b[k] || 0]),
     })),
   };
 }
 
 const CATEGORY = {
-  app: { idx: 0, key: 'catService', color: brand.primary },
-  datastore: { idx: 1, key: 'catDatastore', color: '#2E7DD1' },
-  mq: { idx: 2, key: 'catMessaging', color: '#14B8A6' },
-  external: { idx: 3, key: 'catExternal', color: '#8B5CF6' },
+  app: { idx: 0, key: 'catService', paletteIndex: 0 },
+  datastore: { idx: 1, key: 'catDatastore', paletteIndex: 1 },
+  mq: { idx: 2, key: 'catMessaging', paletteIndex: 5 },
+  external: { idx: 3, key: 'catExternal', paletteIndex: 3 },
 };
 
-export function buildServiceGraph(nodes, edges, selected) {
+export function buildServiceGraph(nodes, edges, selected, chartTheme = DEFAULT_CHART_THEME) {
   const maxCalls = Math.max(1, ...nodes.map((n) => n.calls));
   const maxEdge = Math.max(1, ...edges.map((e) => e.callCount));
   const categories = Object.values(CATEGORY)
     .sort((a, b) => a.idx - b.idx)
-    .map((c) => ({ name: i18n.t(`serviceMap.${c.key}`), itemStyle: { color: c.color } }));
+    .map((c) => ({
+      name: i18n.t(`serviceMap.${c.key}`),
+      itemStyle: { color: chartTheme.palette[c.paletteIndex] },
+    }));
 
   const callsLabel = i18n.t('chart.calls');
   const errorsLabel = i18n.t('chart.errors');
@@ -458,7 +454,7 @@ export function buildServiceGraph(nodes, edges, selected) {
         const tech = p.data.visualLabel ? `<br/>${techLabel}: <b>${p.data.visualLabel}</b>` : '';
         return `<b>${p.data.name}</b>${tech}<br/>${callsLabel}: ${p.data.calls} · ${errorsLabel}: ${(p.data.errorRate * 100).toFixed(1)}%`;
       },
-    }),
+    }, chartTheme),
     legend: {
       data: categories.map((c) => c.name),
       top: 8,
@@ -467,7 +463,7 @@ export function buildServiceGraph(nodes, edges, selected) {
       icon: 'circle',
       itemWidth: 9,
       itemHeight: 9,
-      textStyle: { color: '#5B6573', fontSize: 12 },
+      textStyle: { color: chartTheme.textSecondary, fontSize: 12 },
     },
     series: [
       {
@@ -485,14 +481,14 @@ export function buildServiceGraph(nodes, edges, selected) {
         label: {
           show: true,
           position: 'bottom',
-          color: '#1B1F26',
+          color: chartTheme.text,
           fontSize: 12,
           fontFamily: MONO,
           fontWeight: 600,
           lineHeight: 18,
           formatter: (p) => p.data.name,
           rich: {
-            name: { color: '#1B1F26', fontSize: 12, fontFamily: MONO, fontWeight: 600 },
+            name: { color: chartTheme.text, fontSize: 12, fontFamily: MONO, fontWeight: 600 },
           },
         },
         edgeSymbol: ['none', 'arrow'],
@@ -517,7 +513,7 @@ export function buildServiceGraph(nodes, edges, selected) {
             symbolSize: [size, size],
             itemStyle: {
               shadowBlur: selectedNode ? 22 : 10,
-              shadowColor: brand.glow,
+              shadowColor: chartTheme.brandGlow,
             },
           };
         }),
@@ -532,7 +528,7 @@ export function buildServiceGraph(nodes, edges, selected) {
             errorRate: e.errorRate,
             lineStyle: {
               width: 1.2 + 3.2 * Math.sqrt(e.callCount / maxEdge),
-              color: bad ? status.error : '#C7CCD4',
+              color: bad ? chartTheme.error : chartTheme.edge,
               opacity: bad ? 0.85 : 0.5,
               curveness: 0.12,
             },
@@ -543,4 +539,4 @@ export function buildServiceGraph(nodes, edges, selected) {
   };
 }
 
-export { chartPalette };
+export const chartPalette = DEFAULT_CHART_THEME.palette;

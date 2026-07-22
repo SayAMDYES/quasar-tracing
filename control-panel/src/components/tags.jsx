@@ -31,7 +31,12 @@ export function SpanStatusTag({ value }) {
 export function SpanKindTag({ value }) {
   const m = spanKindMeta[value] || spanKindMeta.Internal;
   return (
-    <Tag style={{ ...baseStyle, color: m.color, background: 'transparent', boxShadow: `inset 0 0 0 1px ${m.color}33` }}>
+    <Tag style={{
+      ...baseStyle,
+      color: m.color,
+      background: 'transparent',
+      boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${m.color} 35%, transparent)`,
+    }}>
       {m.label}
     </Tag>
   );

@@ -28,6 +28,8 @@ public class SpanEntity {
 
     private String parentSpanId;
 
+    private String traceState;
+
     private String serviceName;
 
     private String spanName;
@@ -40,11 +42,21 @@ public class SpanEntity {
     /** Span duration, nanoseconds (raw {@code Duration} UInt64 column). */
     private Long duration;
 
+    /** Span start time, epoch nanoseconds represented as an unsigned decimal string. */
+    private String startTimeUnixNano;
+
+    /** Span duration, nanoseconds represented as an unsigned decimal string. */
+    private String durationNano;
+
     private String statusCode;
 
     private String statusMessage;
 
     private Map<String, String> resourceAttributes;
+
+    private String scopeName;
+
+    private String scopeVersion;
 
     private Map<String, String> spanAttributes;
 
@@ -54,8 +66,47 @@ public class SpanEntity {
     /** Event times, epoch milliseconds (converted in SQL); parallel to {@link #eventNames}. */
     private List<Long> eventTimestamps;
 
+    /** Event times, epoch nanoseconds as decimal strings; parallel to {@link #eventNames}. */
+    private List<String> eventTimeUnixNanos;
+
     /** Per-event attribute maps; parallel to {@link #eventNames}. */
     private List<Map<String, String>> eventAttributes;
+
+    /** Linked trace ids; parallel to the other link arrays. */
+    private List<String> linkTraceIds;
+
+    /** Linked span ids; parallel to the other link arrays. */
+    private List<String> linkSpanIds;
+
+    /** Linked trace states; parallel to the other link arrays. */
+    private List<String> linkTraceStates;
+
+    /** Per-link attribute maps; parallel to the other link arrays. */
+    private List<Map<String, String>> linkAttributes;
+
+    /**
+     * Verifies that the stored arrays used to build a trace document remain aligned.
+     * Null arrays are treated as empty.
+     */
+    public void validateDocumentArrays() {
+        int eventCount = sizeOf(eventNames);
+        if (sizeOf(eventTimeUnixNanos) != eventCount || sizeOf(eventAttributes) != eventCount) {
+            throw new IllegalStateException(
+                    "INVALID_STORED_SPAN_ARRAYS: event arrays have inconsistent lengths");
+        }
+
+        int linkCount = sizeOf(linkTraceIds);
+        if (sizeOf(linkSpanIds) != linkCount
+                || sizeOf(linkTraceStates) != linkCount
+                || sizeOf(linkAttributes) != linkCount) {
+            throw new IllegalStateException(
+                    "INVALID_STORED_SPAN_ARRAYS: link arrays have inconsistent lengths");
+        }
+    }
+
+    private static int sizeOf(List<?> values) {
+        return values == null ? 0 : values.size();
+    }
 
     /**
      * Deployment environment, derived from {@code resourceAttributes}. Derived here (not

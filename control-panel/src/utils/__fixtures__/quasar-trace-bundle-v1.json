@@ -1,0 +1,45 @@
+{
+  "schema": "quasar.trace.bundle",
+  "version": 1,
+  "generatedAt": "2026-07-19T12:00:00.000Z",
+  "generator": {
+    "name": "quasar-tracing",
+    "version": "1.0.7"
+  },
+  "partial": false,
+  "failures": [],
+  "traces": [
+    {
+      "traceId": "0000000000000000abcdef0123456789",
+      "startTimeUnixNano": "1784414400000000000",
+      "durationNano": "125000000",
+      "root": {
+        "spanId": "0000000000000001",
+        "serviceName": "orders",
+        "name": "GET /orders",
+        "selection": "natural"
+      },
+      "services": ["orders"],
+      "warnings": [],
+      "spans": [
+        {
+          "traceId": "0000000000000000abcdef0123456789",
+          "spanId": "0000000000000001",
+          "parentSpanId": "",
+          "traceState": "",
+          "serviceName": "orders",
+          "name": "GET /orders",
+          "kind": "Server",
+          "startTimeUnixNano": "1784414400000000000",
+          "durationNano": "125000000",
+          "status": { "code": "Ok", "message": "" },
+          "resourceAttributes": { "service.name": "orders" },
+          "scope": { "name": "", "version": "" },
+          "spanAttributes": {},
+          "events": [],
+          "links": []
+        }
+      ]
+    }
+  ]
+}

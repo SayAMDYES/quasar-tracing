@@ -1,0 +1,325 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.quasar.tracing.clickhouse.mapper.TraceArchiveMapper">
+
+    <resultMap id="manifestResultMap"
+            type="org.quasar.tracing.clickhouse.entity.TraceArchiveManifestEntity" autoMapping="true">
+        <result column="services" property="services"
+                typeHandler="org.quasar.tracing.clickhouse.handler.StringListTypeHandler"/>
+    </resultMap>
+
+    <resultMap id="spanResultMap" type="org.quasar.tracing.clickhouse.entity.SpanEntity" autoMapping="true">
+        <result column="resourceAttributes" property="resourceAttributes"
+                typeHandler="org.quasar.tracing.clickhouse.handler.StringMapTypeHandler"/>
+        <result column="spanAttributes" property="spanAttributes"
+                typeHandler="org.quasar.tracing.clickhouse.handler.StringMapTypeHandler"/>
+        <result column="eventNames" property="eventNames"
+                typeHandler="org.quasar.tracing.clickhouse.handler.StringListTypeHandler"/>
+        <result column="eventTimestamps" property="eventTimestamps"
+                typeHandler="org.quasar.tracing.clickhouse.handler.LongListTypeHandler"/>
+        <result column="eventTimeUnixNanos" property="eventTimeUnixNanos"
+                typeHandler="org.quasar.tracing.clickhouse.handler.StringListTypeHandler"/>
+        <result column="eventAttributes" property="eventAttributes"
+                typeHandler="org.quasar.tracing.clickhouse.handler.MapListTypeHandler"/>
+        <result column="linkTraceIds" property="linkTraceIds"
+                typeHandler="org.quasar.tracing.clickhouse.handler.StringListTypeHandler"/>
+        <result column="linkSpanIds" property="linkSpanIds"
+                typeHandler="org.quasar.tracing.clickhouse.handler.StringListTypeHandler"/>
+        <result column="linkTraceStates" property="linkTraceStates"
+                typeHandler="org.quasar.tracing.clickhouse.handler.StringListTypeHandler"/>
+        <result column="linkAttributes" property="linkAttributes"
+                typeHandler="org.quasar.tracing.clickhouse.handler.MapListTypeHandler"/>
+    </resultMap>
+
+    <resultMap id="traceSummaryResultMap"
+            type="org.quasar.tracing.clickhouse.entity.TraceSummaryEntity" autoMapping="true">
+        <result column="resourceAttributes" property="resourceAttributes"
+                typeHandler="org.quasar.tracing.clickhouse.handler.StringMapTypeHandler"/>
+    </resultMap>
+
+    <!-- The only latest-state rule. It scans all manifest partitions before choosing a row. -->
+    <sql id="latestArchiveManifest">
+        SELECT
+            TraceId AS traceId,
+            toString(tupleElement(latest, 1)) AS generation,
+            toString(tupleElement(latest, 15)) AS revision,
+            toString(tupleElement(latest, 17)) AS revisionId,
+            toString(tupleElement(latest, 2)) AS state,
+            toUnixTimestamp64Milli(tupleElement(latest, 3)) AS archivedAt,
+            toUnixTimestamp64Milli(tupleElement(latest, 4)) AS expiresAt,
+            toString(toUnixTimestamp64Nano(tupleElement(latest, 5))) AS sourceStartTimeUnixNano,
+            toString(toUnixTimestamp64Nano(tupleElement(latest, 6))) AS sourceEndTimeUnixNano,
+            tupleElement(latest, 7) AS rootServiceName,
+            tupleElement(latest, 8) AS rootSpanName,
+            toString(tupleElement(latest, 9)) AS durationNano,
+            toUInt32(tupleElement(latest, 10)) AS spanCount,
+            toUInt32(tupleElement(latest, 11)) AS errorCount,
+            tupleElement(latest, 12) AS status,
+            tupleElement(latest, 13) AS services,
+            toString(tupleElement(latest, 14)) AS checksumSha256,
+            toString(toUnixTimestamp64Nano(tupleElement(latest, 16))) AS updatedAtUnixNano
+        FROM (
+            SELECT
+                TraceId,
+                argMax(
+                    tuple(
+                        Generation, State, ArchivedAt, ExpiresAt,
+                        SourceStartTime, SourceEndTime,
+                        RootServiceName, RootSpanName, DurationNano,
+                        SpanCount, ErrorCount, Status, Services, ChecksumSha256,
+                        Revision, UpdatedAt, RevisionId
+                    ),
+                    tuple(Revision, UpdatedAt, RevisionId)
+                ) AS latest
+            FROM quasar_tracing.trace_archive_manifest
+            GROUP BY TraceId
+        )
+    </sql>
+
+    <select id="selectLatest" resultMap="manifestResultMap">
+        SELECT *
+        FROM (<include refid="latestArchiveManifest"/>) latestManifest
+        WHERE traceId = #{traceId}
+    </select>
+
+    <select id="maxRevision" resultType="string">
+        SELECT if(count() = 0, '0', toString(max(Revision)))
+        FROM quasar_tracing.trace_archive_manifest
+        WHERE TraceId = #{traceId}
+    </select>
+
+    <insert id="insertGeneration">
+        INSERT INTO quasar_tracing.trace_archive_spans
+        (
+            ArchiveGeneration, ArchivedAt, ExpiresAt,
+            Timestamp, TraceId, SpanId, ParentSpanId, TraceState,
+            SpanName, SpanKind, ServiceName, ResourceAttributes,
+            ScopeName, ScopeVersion, SpanAttributes, Duration,
+            StatusCode, StatusMessage,
+            Events.Timestamp, Events.Name, Events.Attributes,
+            Links.TraceId, Links.SpanId, Links.TraceState, Links.Attributes
+        )
+        SELECT
+            toUUID(#{generation}),
+            fromUnixTimestamp64Milli(#{archivedAt}),
+            fromUnixTimestamp64Milli(#{expiresAt}),
+            Timestamp, TraceId, SpanId, ParentSpanId, TraceState,
+            SpanName, SpanKind, ServiceName, ResourceAttributes,
+            ScopeName, ScopeVersion, SpanAttributes, Duration,
+            StatusCode, StatusMessage,
+            Events.Timestamp, Events.Name, Events.Attributes,
+            Links.TraceId, Links.SpanId, Links.TraceState, Links.Attributes
+        FROM quasar_tracing.spans
+        WHERE TraceId = #{traceId}
+    </insert>
+
+    <select id="selectGeneration" resultMap="spanResultMap">
+        SELECT
+            TraceId AS traceId,
+            SpanId AS spanId,
+            ParentSpanId AS parentSpanId,
+            TraceState AS traceState,
+            ServiceName AS serviceName,
+            SpanName AS spanName,
+            SpanKind AS spanKind,
+            toUnixTimestamp64Milli(Timestamp) AS timestamp,
+            Duration AS duration,
+            toString(toUnixTimestamp64Nano(Timestamp)) AS startTimeUnixNano,
+            toString(Duration) AS durationNano,
+            StatusCode AS statusCode,
+            StatusMessage AS statusMessage,
+            ResourceAttributes AS resourceAttributes,
+            ScopeName AS scopeName,
+            ScopeVersion AS scopeVersion,
+            SpanAttributes AS spanAttributes,
+            Events.Name AS eventNames,
+            arrayMap(x -> toUnixTimestamp64Milli(x), Events.Timestamp) AS eventTimestamps,
+            arrayMap(x -> toString(toUnixTimestamp64Nano(x)), Events.Timestamp) AS eventTimeUnixNanos,
+            arrayMap(m -> toJSONString(m), Events.Attributes) AS eventAttributes,
+            Links.TraceId AS linkTraceIds,
+            Links.SpanId AS linkSpanIds,
+            Links.TraceState AS linkTraceStates,
+            arrayMap(m -> toJSONString(m), Links.Attributes) AS linkAttributes
+        FROM quasar_tracing.trace_archive_spans
+        WHERE TraceId = #{traceId}
+          AND ArchiveGeneration = toUUID(#{generation})
+        ORDER BY Timestamp, SpanId
+    </select>
+
+    <insert id="insertManifest">
+        INSERT INTO quasar_tracing.trace_archive_manifest
+        (
+            TraceId, Generation, Revision, RevisionId, State,
+            ArchivedAt, ExpiresAt, SourceStartTime, SourceEndTime,
+            RootServiceName, RootSpanName, DurationNano,
+            SpanCount, ErrorCount, Status, Services, ChecksumSha256, UpdatedAt
+        )
+        VALUES
+        (
+            #{traceId}, toUUID(#{generation}), toUInt64(#{revision}), toUUID(#{revisionId}), #{state},
+            fromUnixTimestamp64Milli(#{archivedAt}), fromUnixTimestamp64Milli(#{expiresAt}),
+            fromUnixTimestamp64Nano(toInt64(#{sourceStartTimeUnixNano})),
+            fromUnixTimestamp64Nano(toInt64(#{sourceEndTimeUnixNano})),
+            #{rootServiceName}, #{rootSpanName}, toUInt64(#{durationNano}),
+            #{spanCount}, #{errorCount}, #{status},
+            #{services,typeHandler=org.quasar.tracing.clickhouse.handler.StringListTypeHandler},
+            #{checksumSha256}, now64(9)
+        )
+    </insert>
+
+    <delete id="cleanupGeneration">
+        ALTER TABLE quasar_tracing.trace_archive_spans
+        DELETE WHERE TraceId = #{traceId} AND ArchiveGeneration = toUUID(#{generation})
+    </delete>
+
+    <sql id="archiveSearchBody">
+        FROM quasar_tracing.trace_archive_spans s
+        INNER JOIN (<include refid="latestArchiveManifest"/>) m
+            ON m.traceId = s.TraceId AND m.generation = toString(s.ArchiveGeneration)
+        WHERE m.state = 'ACTIVE'
+          AND m.expiresAt &gt; toUnixTimestamp64Milli(now64(3))
+          AND s.Timestamp BETWEEN fromUnixTimestamp64Milli(#{from}) AND fromUnixTimestamp64Milli(#{to})
+        GROUP BY s.TraceId
+        HAVING 1 = 1
+        <if test="service != null and service != ''">
+            AND has(groupUniqArray(s.ServiceName), #{service})
+        </if>
+        <if test="operation != null and operation != ''">
+            AND argMin(s.SpanName, s.Timestamp) = #{operation}
+        </if>
+        <if test="status == 'error'">
+            AND countIf(s.StatusCode = 'Error') &gt; 0
+        </if>
+        <if test="status == 'ok'">
+            AND countIf(s.StatusCode = 'Error') = 0
+        </if>
+        <if test="environment != null and environment != ''">
+            AND any(s.ResourceAttributes['deployment.environment.name']) = #{environment}
+        </if>
+        <if test="namespace != null and namespace != ''">
+            AND (
+                any(s.ResourceAttributes['service.namespace']) = #{namespace}
+                OR any(s.ResourceAttributes['k8s.namespace.name']) = #{namespace}
+            )
+        </if>
+        <if test="k8sNamespace != null and k8sNamespace != ''">
+            AND any(s.ResourceAttributes['k8s.namespace.name']) = #{k8sNamespace}
+        </if>
+        <if test="k8sPodName != null and k8sPodName != ''">
+            AND any(s.ResourceAttributes['k8s.pod.name']) = #{k8sPodName}
+        </if>
+        <if test="k8sNodeName != null and k8sNodeName != ''">
+            AND any(s.ResourceAttributes['k8s.node.name']) = #{k8sNodeName}
+        </if>
+        <if test="serviceInstanceId != null and serviceInstanceId != ''">
+            AND any(s.ResourceAttributes['service.instance.id']) = #{serviceInstanceId}
+        </if>
+        <if test="attributeConditions != null and !attributeConditions.isEmpty()">
+            AND countIf(
+            <foreach collection="attributeConditions" item="condition" separator=" AND ">
+                <choose>
+                    <when test="condition.scope == 'resource'">
+                        <choose>
+                            <when test="condition.operator == 'exists'">
+                                mapContains(s.ResourceAttributes, #{condition.key})
+                            </when>
+                            <when test="condition.operator == 'equals'">
+                                mapContains(s.ResourceAttributes, #{condition.key})
+                                AND s.ResourceAttributes[#{condition.key}] = #{condition.value}
+                            </when>
+                            <otherwise>
+                                mapContains(s.ResourceAttributes, #{condition.key})
+                                AND positionCaseInsensitive(
+                                    s.ResourceAttributes[#{condition.key}], #{condition.value}) &gt; 0
+                            </otherwise>
+                        </choose>
+                    </when>
+                    <otherwise>
+                        <choose>
+                            <when test="condition.operator == 'exists'">
+                                mapContains(s.SpanAttributes, #{condition.key})
+                            </when>
+                            <when test="condition.operator == 'equals'">
+                                mapContains(s.SpanAttributes, #{condition.key})
+                                AND s.SpanAttributes[#{condition.key}] = #{condition.value}
+                            </when>
+                            <otherwise>
+                                mapContains(s.SpanAttributes, #{condition.key})
+                                AND positionCaseInsensitive(
+                                    s.SpanAttributes[#{condition.key}], #{condition.value}) &gt; 0
+                            </otherwise>
+                        </choose>
+                    </otherwise>
+                </choose>
+            </foreach>
+            ) &gt; 0
+        </if>
+        <if test="spanSelector != null">
+            AND countIf(
+                1 = 1
+                <if test="spanSelector.service != null and spanSelector.service != ''">
+                    AND s.ServiceName = #{spanSelector.service}
+                </if>
+                <if test="spanSelector.operation != null and spanSelector.operation != ''">
+                    AND s.SpanName = #{spanSelector.operation}
+                </if>
+                <if test="spanSelector.status == 'error'">
+                    AND s.StatusCode = 'Error'
+                </if>
+                <if test="spanSelector.status == 'ok'">
+                    AND s.StatusCode != 'Error'
+                </if>
+            ) &gt; 0
+        </if>
+        <if test="minDurationNs != null and minDurationNs > 0">
+            AND (max(toUnixTimestamp64Nano(s.Timestamp) + s.Duration)
+                - min(toUnixTimestamp64Nano(s.Timestamp))) &gt;= #{minDurationNs}
+        </if>
+        <if test="maxDurationNs != null and maxDurationNs > 0">
+            AND (max(toUnixTimestamp64Nano(s.Timestamp) + s.Duration)
+                - min(toUnixTimestamp64Nano(s.Timestamp))) &lt;= #{maxDurationNs}
+        </if>
+        <if test="q != null and q != ''">
+            AND (positionCaseInsensitive(argMin(s.SpanName, s.Timestamp), #{q}) &gt; 0
+                OR position(s.TraceId, #{q}) &gt; 0)
+        </if>
+    </sql>
+
+    <select id="search" resultMap="traceSummaryResultMap">
+        SELECT
+            s.TraceId AS traceId,
+            argMin(s.ServiceName, s.Timestamp) AS rootService,
+            argMin(s.SpanName, s.Timestamp) AS rootName,
+            toUnixTimestamp64Milli(min(s.Timestamp)) AS startTime,
+            toUInt64(max(toUnixTimestamp64Nano(s.Timestamp) + s.Duration)
+                - min(toUnixTimestamp64Nano(s.Timestamp))) AS durationNs,
+            toUInt32(count()) AS spanCount,
+            toUInt32(countIf(s.StatusCode = 'Error')) AS errorCount,
+            if(countIf(s.StatusCode = 'Error') &gt; 0, 'Error', 'Ok') AS status,
+            any(s.ResourceAttributes) AS resourceAttributes,
+            'archive' AS source,
+            any(m.archivedAt) AS archivedAt
+        <include refid="archiveSearchBody"/>
+        ORDER BY
+        <choose>
+            <when test="sort == 'duration'">durationNs</when>
+            <when test="sort == 'spans'">spanCount</when>
+            <otherwise>startTime</otherwise>
+        </choose>
+        <choose>
+            <when test="order == 'asc'">ASC</when>
+            <otherwise>DESC</otherwise>
+        </choose>
+        LIMIT ${limit} OFFSET ${offset}
+    </select>
+
+    <select id="countSearch" resultType="long">
+        SELECT count()
+        FROM (
+            SELECT s.TraceId
+            <include refid="archiveSearchBody"/>
+        )
+    </select>
+
+</mapper>

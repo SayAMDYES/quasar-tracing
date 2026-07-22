@@ -1,0 +1,30 @@
+{
+  "data": [
+    {
+      "traceID": "abcdef0123456789",
+      "spans": [
+        {
+          "traceID": "abcdef0123456789",
+          "spanID": "1",
+          "operationName": "GET /orders",
+          "references": [],
+          "startTime": 1784414400000000,
+          "duration": 125000,
+          "tags": [
+            { "key": "span.kind", "type": "string", "value": "server" }
+          ],
+          "logs": [],
+          "processID": "p1",
+          "warnings": []
+        }
+      ],
+      "processes": {
+        "p1": {
+          "serviceName": "orders",
+          "tags": []
+        }
+      },
+      "warnings": []
+    }
+  ]
+}

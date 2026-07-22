@@ -8,17 +8,21 @@ import { useEffect, useMemo, useState } from 'react';
 import { Alert, Button, Card, Col, Collapse, Input, InputNumber, Row, Select, Space, Table, Tag, Typography } from 'antd';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { DiffOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/PageHeader';
 import Toolbar from '@/components/Toolbar';
 import EChart from '@/components/EChart';
 import DurationBar from '@/components/DurationBar';
 import CopyableId from '@/components/CopyableId';
+import TraceResultsDownload from '@/components/TraceResultsDownload';
+import TraceSourceSelector from '@/components/TraceSourceSelector';
 import TraceAttributeFilterBuilder from '@/components/TraceAttributeFilterBuilder';
 import { ServiceBadge, SpanStatusTag, EnvTag } from '@/components/tags';
 import { useApp } from '@/context/AppContext';
+import { useThemeMode } from '@/context/ThemeContext';
 import useFetch from '@/hooks/useFetch';
 import useInvestigationRange from '@/hooks/useInvestigationRange';
-import { searchTraces, fetchFilters } from '@/api';
+import { searchTraces, fetchArchiveCapabilities, fetchFilters } from '@/api';
 import { buildTraceDistributionCharts } from '@/charts/options';
 import { formatTime, formatInt, fromNow } from '@/utils/format';
 import {
@@ -29,8 +33,20 @@ import {
 } from '@/utils/traceSearchParams';
 import { parseInvestigationRange } from '@/utils/investigationContext';
 import { status as statusColors } from '@/theme/tokens';
+import { useTraceCompareSelection } from '@/context/TraceCompareSelectionContext';
+import {
+  liveTraceRef,
+  parseTraceSourceRef,
+  traceComparePath,
+} from '@/utils/traceSourceRef';
 
 const { Text } = Typography;
+
+const TRACE_SORT_FIELDS = {
+  durationNs: 'duration',
+  spanCount: 'spans',
+  startTime: 'startTime',
+};
 
 const DEFAULT_FILTERS = {
   service: undefined,
@@ -62,6 +78,11 @@ function isNestedInteractiveTarget(event) {
   return event.target !== event.currentTarget;
 }
 
+function isRowActionTarget(event) {
+  return event.target instanceof Element
+    && Boolean(event.target.closest('a, button, input, .ant-checkbox-wrapper'));
+}
+
 function attributeConditionKey(condition) {
   return JSON.stringify([
     condition.scope,
@@ -80,17 +101,20 @@ function appliedConditionLabel(condition, t) {
   });
 }
 
-function encodeFiltersWithRange(filters, investigationRange) {
+function encodeFiltersWithRange(filters, investigationRange, source) {
   const params = encodeTraceSearchParams(filters);
   if (investigationRange) {
     params.set('from', String(investigationRange.from));
     params.set('to', String(investigationRange.to));
   }
+  if (source === 'archive') params.set('source', 'archive');
   return params;
 }
 
 export default function TraceSearchPage() {
+  const { chartTheme } = useThemeMode();
   const { autoRefreshRevision } = useApp();
+  const compareSelection = useTraceCompareSelection();
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -106,6 +130,23 @@ export default function TraceSearchPage() {
     [searchParamsString],
   );
   const [form, setForm] = useState(() => ({ ...DEFAULT_FILTERS, ...applied }));
+  const [tableSort, setTableSort] = useState({ field: 'durationNs', order: 'descend' });
+  const searchSource = searchParams.get('source') === 'archive' ? 'archive' : 'live';
+  const selectedServerTraceIds = compareSelection.selectedRefs
+    .map(parseTraceSourceRef)
+    .filter((ref) => ref?.source === searchSource)
+    .map((ref) => ref.traceId);
+  const comparePath = compareSelection.selectedRefs.length === 2
+    ? traceComparePath(compareSelection.selectedRefs[0], compareSelection.selectedRefs[1])
+    : null;
+  const traceRequest = useMemo(() => ({
+    ...toTraceSearchRequest(applied),
+    from: effectiveRange.from,
+    to: effectiveRange.to,
+    sort: TRACE_SORT_FIELDS[tableSort.field],
+    order: tableSort.order === 'ascend' ? 'asc' : 'desc',
+    source: searchSource,
+  }), [applied, effectiveRange.from, effectiveRange.to, searchSource, tableSort.field, tableSort.order]);
 
   useEffect(() => {
     const decoded = decodeTraceSearchParams(new URLSearchParams(searchParamsString));
@@ -113,16 +154,15 @@ export default function TraceSearchPage() {
   }, [searchParamsString]);
 
   const { data: filters } = useFetch(fetchFilters, []);
+  const { data: archiveCapabilities } = useFetch(fetchArchiveCapabilities, []);
   const { data, loading, error, refetch } = useFetch(
     () => attributeError
       ? Promise.resolve({ items: [], total: 0 })
       : searchTraces({
-        ...toTraceSearchRequest(applied),
-        from: effectiveRange.from,
-        to: effectiveRange.to,
+        ...traceRequest,
         limit: 200,
       }),
-    [attributeError, applied, effectiveRange.from, effectiveRange.to],
+    [attributeError, traceRequest],
     { backgroundKey: autoRefreshRevision },
   );
 
@@ -131,11 +171,17 @@ export default function TraceSearchPage() {
     if (normalized.errors.length) return;
     const next = { ...form, attributeConditions: normalized.conditions };
     setForm(next);
-    setSearchParams(encodeFiltersWithRange(next, rangeToPersist));
+    setSearchParams(encodeFiltersWithRange(next, rangeToPersist, searchSource));
   };
   const resetFilters = () => {
     setForm({ ...DEFAULT_FILTERS, attributeConditions: [] });
-    setSearchParams(encodeFiltersWithRange(DEFAULT_FILTERS, rangeToPersist));
+    setSearchParams(encodeFiltersWithRange(DEFAULT_FILTERS, rangeToPersist, searchSource));
+  };
+  const changeSource = (value) => {
+    const next = new URLSearchParams(searchParamsString);
+    if (value === 'archive') next.set('source', 'archive');
+    else next.delete('source');
+    setSearchParams(next);
   };
   const clearInvalidAttributes = () => {
     const next = new URLSearchParams(searchParamsString);
@@ -149,7 +195,7 @@ export default function TraceSearchPage() {
         (_, conditionIndex) => conditionIndex !== index,
       ),
     };
-    setSearchParams(encodeFiltersWithRange(next, rangeToPersist));
+    setSearchParams(encodeFiltersWithRange(next, rangeToPersist, searchSource));
   };
   const applyDurationRange = (bucket) => {
     if (!bucket) return;
@@ -162,7 +208,7 @@ export default function TraceSearchPage() {
     if (normalized.errors.length) return;
     const normalizedNext = { ...next, attributeConditions: normalized.conditions };
     setForm(normalizedNext);
-    setSearchParams(encodeFiltersWithRange(normalizedNext, rangeToPersist));
+    setSearchParams(encodeFiltersWithRange(normalizedNext, rangeToPersist, searchSource));
   };
   const maxNs = useMemo(
     () => (data?.items?.length ? Math.max(...data.items.map((it) => it.durationNs)) : 1),
@@ -170,9 +216,9 @@ export default function TraceSearchPage() {
   );
   const distributionCharts = useMemo(() => {
     if (!data?.items?.length) return null;
-    return buildTraceDistributionCharts(data.items, effectiveRange);
+    return buildTraceDistributionCharts(data.items, effectiveRange, chartTheme);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, effectiveRange.from, effectiveRange.to, i18n.language]);
+  }, [data, effectiveRange.from, effectiveRange.to, i18n.language, chartTheme]);
 
   const columns = [
     {
@@ -180,6 +226,14 @@ export default function TraceSearchPage() {
       dataIndex: 'traceId',
       width: 132,
       render: (id) => <CopyableId value={id} short head={10} />,
+    },
+    {
+      title: t('traceArchive.source'),
+      dataIndex: 'source',
+      width: 96,
+      render: (value) => value === 'archive'
+        ? <Tag color="purple">{t('traceArchive.sourceArchive')}</Tag>
+        : <Tag>{t('traceArchive.sourceLive')}</Tag>,
     },
     {
       title: t('traceSearch.colRootService'),
@@ -198,8 +252,9 @@ export default function TraceSearchPage() {
       title: t('traceSearch.colDuration'),
       dataIndex: 'durationNs',
       width: 220,
-      sorter: (a, b) => a.durationNs - b.durationNs,
-      defaultSortOrder: 'descend',
+      sorter: true,
+      sortDirections: ['descend', 'ascend', 'descend'],
+      sortOrder: tableSort.field === 'durationNs' ? tableSort.order : null,
       render: (v) => <DurationBar valueNs={v} maxNs={maxNs} width={136} />,
     },
     {
@@ -207,7 +262,9 @@ export default function TraceSearchPage() {
       dataIndex: 'spanCount',
       width: 76,
       align: 'right',
-      sorter: (a, b) => a.spanCount - b.spanCount,
+      sorter: true,
+      sortDirections: ['descend', 'ascend', 'descend'],
+      sortOrder: tableSort.field === 'spanCount' ? tableSort.order : null,
       render: (v) => <span className="num">{v}</span>,
     },
     {
@@ -258,7 +315,9 @@ export default function TraceSearchPage() {
       title: t('traceSearch.colStarted'),
       dataIndex: 'startTime',
       width: 150,
-      sorter: (a, b) => a.startTime - b.startTime,
+      sorter: true,
+      sortDirections: ['descend', 'ascend', 'descend'],
+      sortOrder: tableSort.field === 'startTime' ? tableSort.order : null,
       render: (ts) => (
         <Space direction="vertical" size={0}>
           <span className="num" style={{ fontSize: 12 }}>{formatTime(ts)}</span>
@@ -301,7 +360,28 @@ export default function TraceSearchPage() {
 
   return (
     <>
-      <PageHeader title={t('traceSearch.title')} description={t('traceSearch.description')} />
+      <PageHeader
+        title={t('traceSearch.title')}
+        description={t('traceSearch.description')}
+        extra={(
+          <Space wrap>
+            <TraceSourceSelector
+              enabled={archiveCapabilities?.enabled}
+              value={searchSource}
+              onChange={changeSource}
+            />
+            <TraceResultsDownload request={traceRequest} total={data?.total || 0} />
+            <Button
+              type="primary"
+              icon={<DiffOutlined />}
+              disabled={!comparePath}
+              onClick={() => comparePath && navigate(comparePath)}
+            >
+              {t('traceCompare.compareSelected', { count: compareSelection.selectedRefs.length })}
+            </Button>
+          </Space>
+        )}
+      />
 
       <Toolbar
         style={{ marginBottom: 16 }}
@@ -529,7 +609,7 @@ export default function TraceSearchPage() {
                 height={220}
                 onEvents={{
                   click: (params) => {
-                    if (params.data?.traceId) navigate(`/traces/${params.data.traceId}`);
+                    if (params.data?.traceId) navigate(`/traces/${params.data.traceId}${searchSource === 'archive' ? '?source=archive' : ''}`);
                   },
                 }}
               />
@@ -554,10 +634,37 @@ export default function TraceSearchPage() {
         loading={loading}
         columns={columns}
         dataSource={data?.items || []}
+        rowSelection={{
+          preserveSelectedRowKeys: true,
+          selectedRowKeys: selectedServerTraceIds,
+          onChange: (keys) => {
+            const importedRefs = compareSelection.selectedRefs.filter((ref) => (
+              parseTraceSourceRef(ref)?.source === 'import'
+            ));
+            compareSelection.setSelectedRefs([
+              ...importedRefs,
+              ...keys.map((traceId) => (searchSource === 'archive'
+                ? `archive:${traceId}` : liveTraceRef(traceId))).filter(Boolean),
+            ]);
+          },
+          getCheckboxProps: (record) => ({
+            disabled: compareSelection.selectedRefs.length >= 2
+              && !compareSelection.selectedRefs.includes(searchSource === 'archive'
+                ? `archive:${record.traceId}` : liveTraceRef(record.traceId)),
+          }),
+        }}
         pagination={{ pageSize: 20, showSizeChanger: false, size: 'small' }}
         scroll={{ x: 1694 }}
+        onChange={(_, __, sorter) => {
+          const next = Array.isArray(sorter) ? sorter[0] : sorter;
+          if (TRACE_SORT_FIELDS[next?.field] && next.order) {
+            setTableSort({ field: next.field, order: next.order });
+          }
+        }}
         onRow={(r) => ({
-          onClick: () => navigate(`/traces/${r.traceId}`),
+          onClick: (event) => {
+            if (!isRowActionTarget(event)) navigate(`/traces/${r.traceId}${searchSource === 'archive' ? '?source=archive' : ''}`);
+          },
           onKeyDown: (e) => {
             if (isNestedInteractiveTarget(e)) return;
             if (e.key === 'Enter' || e.key === ' ') {

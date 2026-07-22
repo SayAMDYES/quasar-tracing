@@ -40,6 +40,11 @@ public class TraceSummaryEntity {
     /** Root-span resource attributes ({@code any(ResourceAttributes)} over the group). */
     private Map<String, String> resourceAttributes;
 
+    private String source;
+
+    /** Archive creation time, epoch milliseconds; null for live results. */
+    private Long archivedAt;
+
     /**
      * Deployment environment, derived from {@code resourceAttributes}. Derived here (not
      * projected in SQL) because the JDBC driver's statement parser breaks on multiple

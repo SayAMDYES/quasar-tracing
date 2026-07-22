@@ -9,14 +9,14 @@ import { brand } from '@/theme/tokens';
 
 export default function DurationBar({ valueNs, maxNs, color, width = 120 }) {
   const pct = maxNs ? Math.max(2, Math.min(100, (valueNs / maxNs) * 100)) : 0;
-  const fill = color || (pct > 66 ? brand.primaryActive : pct > 33 ? brand.primary : '#F6A85C');
+  const fill = color || (pct > 66 ? brand.primaryActive : pct > 33 ? brand.primary : 'var(--percentile-p50)');
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
       <div
         style={{
           flex: `0 0 ${width}px`,
           height: 6,
-          background: '#EEF0F3',
+          background: 'var(--chart-split)',
           borderRadius: 4,
           overflow: 'hidden',
         }}

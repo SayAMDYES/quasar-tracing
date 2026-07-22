@@ -16,6 +16,8 @@ export default function AsyncBoundary({
   skeleton,
   children,
   emptyText,
+  errorTitle,
+  errorDescription,
 }) {
   const { t } = useTranslation();
 
@@ -30,8 +32,8 @@ export default function AsyncBoundary({
     return (
       <Result
         status="warning"
-        title={t('common.loadError')}
-        subTitle={t('common.loadErrorDescription')}
+        title={errorTitle || t('common.loadError')}
+        subTitle={errorDescription || t('common.loadErrorDescription')}
         extra={
           <>
             {onRetry && (

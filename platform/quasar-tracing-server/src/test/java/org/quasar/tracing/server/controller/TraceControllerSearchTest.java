@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.quasar.tracing.common.api.QTPageDTO;
 import org.quasar.tracing.common.dto.TraceAttributeConditionDTO;
 import org.quasar.tracing.common.dto.TraceSummaryDTO;
+import org.quasar.tracing.common.dto.TraceSource;
 import org.quasar.tracing.core.exception.InvalidQueryException;
 import org.quasar.tracing.core.service.TraceService;
 import org.quasar.tracing.server.query.TraceAttributeConditionParser;
@@ -47,11 +48,12 @@ class TraceControllerSearchTest {
     void returnsTraceSearchJson() throws Exception {
         TraceSummaryDTO trace = new TraceSummaryDTO("aabbccddeeff00112233445566778899", "web-gateway",
             "GET /api/checkout", 1_717_840_800_000L, 120_000_000L, 18, 1, "Error", "production",
-            "ip-10-2-14-3", "pod-uid-1", "quasar-ns", "web-gateway-abc", "pod-uid-1", "node-1", null);
+            "ip-10-2-14-3", "pod-uid-1", "quasar-ns", "web-gateway-abc", "pod-uid-1", "node-1",
+            null, TraceSource.LIVE, null);
         when(parser.parse(null)).thenReturn(List.of());
         when(service.search(any(), any(), any(), any(), any(), any(), any(), any(), any(),
             any(), any(), any(), any(), any(), any(), any(), any(), any(),
-            any(), any(), any(), any()))
+            any(), any(), any(), any(), any()))
             .thenReturn(new QTPageDTO<>(1, 50, 150L, List.of(trace)));
 
         mvc.perform(get("/api/traces")
@@ -71,7 +73,7 @@ class TraceControllerSearchTest {
             .andExpect(jsonPath("$.data.records[0].durationNs").value("120000000"));
         verify(service).search(any(), any(), any(), eq("production"), eq("quasar"), any(), any(), any(),
             eq("pod-uid-1"), any(), any(), any(), any(), any(), any(), any(), any(), any(),
-            any(), any(), any(), any());
+            any(), any(), any(), any(), eq(TraceSource.LIVE));
     }
 
     @Test
@@ -81,7 +83,7 @@ class TraceControllerSearchTest {
         when(parser.parse(raw)).thenReturn(List.of(condition));
         when(service.search(any(), any(), any(), any(), any(), any(), any(), any(), any(),
             any(), any(), any(), any(), any(), any(), any(), any(), any(),
-            any(), any(), any(), any()))
+            any(), any(), any(), any(), any()))
             .thenReturn(new QTPageDTO<>(1, 50, 0L, List.of()));
 
         mvc.perform(get("/api/traces").param("attributes", raw))
@@ -91,7 +93,7 @@ class TraceControllerSearchTest {
         verify(service).search(any(), any(), any(), any(), any(), any(), any(), any(), any(),
             any(), any(), any(), any(), any(),
             argThat(items -> items.size() == 1 && "db.system".equals(items.get(0).getKey())),
-            any(), any(), any(), any(), any(), any(), any());
+            any(), any(), any(), any(), any(), any(), any(), eq(TraceSource.LIVE));
     }
 
     @Test
@@ -99,7 +101,7 @@ class TraceControllerSearchTest {
         when(parser.parse(null)).thenReturn(List.of());
         when(service.search(any(), any(), any(), any(), any(), any(), any(), any(), any(),
             any(), any(), any(), any(), any(), any(), any(), any(), any(),
-            any(), any(), any(), any()))
+            any(), any(), any(), any(), any()))
             .thenReturn(new QTPageDTO<>(1, 50, 0L, List.of()));
 
         mvc.perform(get("/api/traces")
@@ -111,7 +113,7 @@ class TraceControllerSearchTest {
         verify(service).search(any(), any(), any(), any(), any(), any(), any(), any(), any(),
             any(), any(), any(), any(), any(), any(),
             eq("checkout"), eq("POST /orders"), eq("ERROR"),
-            any(), any(), any(), any());
+            any(), any(), any(), any(), eq(TraceSource.LIVE));
     }
 
     @Test
@@ -119,7 +121,7 @@ class TraceControllerSearchTest {
         when(parser.parse(null)).thenReturn(List.of());
         when(service.search(any(), any(), any(), any(), any(), any(), any(), any(), any(),
             any(), any(), any(), any(), any(), any(), any(), any(), eq("unknown"),
-            any(), any(), any(), any()))
+            any(), any(), any(), any(), any()))
             .thenThrow(new InvalidQueryException("Span status must be error or ok"));
 
         mvc.perform(get("/api/traces").param("spanStatus", "unknown"))
@@ -129,7 +131,7 @@ class TraceControllerSearchTest {
 
         verify(service).search(any(), any(), any(), any(), any(), any(), any(), any(), any(),
             any(), any(), any(), any(), any(), any(), any(), any(), eq("unknown"),
-            any(), any(), any(), any());
+            any(), any(), any(), any(), eq(TraceSource.LIVE));
     }
 
     @Test

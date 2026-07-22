@@ -6,7 +6,7 @@
  * @author Quasar
  */
 import dayjs from 'dayjs';
-import relativeTime from 'dayjs/plugin/relativeTime';
+import relativeTime from 'dayjs/plugin/relativeTime.js';
 
 dayjs.extend(relativeTime);
 
@@ -18,6 +18,24 @@ export function nsToMs(ns) {
 /** Human-readable duration from nanoseconds, e.g. 1230000 → "1.23ms". */
 export function formatDuration(ns) {
   if (ns == null) return '—';
+  if (typeof ns === 'bigint' || (typeof ns === 'string' && /^\d+$/.test(ns))) {
+    const value = BigInt(ns);
+    const fixed = (divisor, digits) => {
+      const scale = 10n ** BigInt(digits);
+      const rounded = (value * scale + divisor / 2n) / divisor;
+      const whole = rounded / scale;
+      if (digits === 0) return whole.toString();
+      const fraction = (rounded % scale).toString().padStart(digits, '0');
+      return `${whole}.${fraction}`;
+    };
+    if (value < 1_000n) return `${value}ns`;
+    if (value < 1_000_000n) return `${fixed(1_000n, value < 10_000n ? 2 : 1)}µs`;
+    if (value < 1_000_000_000n) {
+      const digits = value < 10_000_000n ? 2 : value < 100_000_000n ? 1 : 0;
+      return `${fixed(1_000_000n, digits)}ms`;
+    }
+    return `${fixed(1_000_000_000n, 2)}s`;
+  }
   if (ns < 1_000) return `${ns}ns`;
   if (ns < 1_000_000) return `${(ns / 1_000).toFixed(ns < 10_000 ? 2 : 1)}µs`;
   if (ns < 1_000_000_000) {

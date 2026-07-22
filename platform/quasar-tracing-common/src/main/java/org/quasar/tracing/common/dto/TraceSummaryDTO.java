@@ -72,4 +72,11 @@ public class TraceSummaryDTO implements Serializable {
 
     @Schema(description = "Distinct services in the trace; populated in detail, null in search results")
     private List<String> services;
+
+    @Schema(description = "Resolved trace source", allowableValues = {"live", "archive"})
+    private TraceSource source;
+
+    @Schema(description = "Archive creation time, epoch milliseconds; null for live traces")
+    @JsonFormat(shape = JsonFormat.Shape.STRING)
+    private Long archivedAt;
 }

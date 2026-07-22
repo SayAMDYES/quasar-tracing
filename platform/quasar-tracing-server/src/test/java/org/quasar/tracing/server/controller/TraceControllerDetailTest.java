@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.quasar.tracing.common.dto.SpanDTO;
 import org.quasar.tracing.common.dto.TraceDetailDTO;
 import org.quasar.tracing.common.dto.TraceSummaryDTO;
+import org.quasar.tracing.common.dto.TraceSource;
 import org.quasar.tracing.core.exception.NotFoundException;
 import org.quasar.tracing.core.service.TraceService;
 import org.quasar.tracing.server.query.TraceAttributeConditionParser;
@@ -42,10 +43,11 @@ class TraceControllerDetailTest {
     void returnsTraceDetailJson() throws Exception {
         TraceSummaryDTO summary = new TraceSummaryDTO("t1", "web-gateway", "GET /api/checkout",
             1000L, 120_000_000L, 2, 1, "Error", "production", "h1",
-            "pod-uid-1", "quasar-ns", "web-gateway-abc", "pod-uid-1", "node-1", List.of("web-gateway", "mysql"));
+            "pod-uid-1", "quasar-ns", "web-gateway-abc", "pod-uid-1", "node-1",
+            List.of("web-gateway", "mysql"), TraceSource.LIVE, null);
         SpanDTO span = new SpanDTO("t1", "s1", "", "web-gateway", "GET /api/checkout", "Server",
             0d, 1000L, 120_000_000L, 120d, "Ok", "", 0, Map.of(), Map.of(), List.of());
-        when(traceService.detail("t1"))
+        when(traceService.detail("t1", TraceSource.AUTO))
             .thenReturn(new TraceDetailDTO(summary, List.of(span), List.of("web-gateway", "mysql")));
 
         mvc.perform(get("/api/traces/t1"))
@@ -58,7 +60,8 @@ class TraceControllerDetailTest {
 
     @Test
     void returns404WithMessageForUnknownTrace() throws Exception {
-        when(traceService.detail("missing")).thenThrow(new NotFoundException("Trace not found: missing"));
+        when(traceService.detail("missing", TraceSource.AUTO))
+            .thenThrow(new NotFoundException("Trace not found: missing"));
 
         mvc.perform(get("/api/traces/missing"))
             .andExpect(status().isNotFound())

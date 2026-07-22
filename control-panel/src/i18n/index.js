@@ -9,9 +9,9 @@
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import dayjs from 'dayjs';
-import 'dayjs/locale/zh-cn';
-import en from './locales/en';
-import zhCN from './locales/zh-CN';
+import 'dayjs/locale/zh-cn.js';
+import en from './locales/en.js';
+import zhCN from './locales/zh-CN.js';
 
 export const SUPPORTED_LANGUAGES = [
   { key: 'en', label: 'EN' },
