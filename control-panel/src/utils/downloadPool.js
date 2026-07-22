@@ -30,7 +30,8 @@ function sanitizeFailure(item, error) {
   const code = error?.code === 'DOWNLOAD_TIMEOUT'
     ? 'DOWNLOAD_TIMEOUT'
     : status == null ? 'NETWORK_ERROR' : `HTTP_${status}`;
-  return { item, code, message: code };
+  const message = typeof error?.message === 'string' && error.message ? error.message : code;
+  return { item, code, message };
 }
 
 function defaultJitter() {

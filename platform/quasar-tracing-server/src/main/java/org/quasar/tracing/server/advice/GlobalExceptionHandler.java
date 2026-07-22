@@ -59,6 +59,6 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public QTResponse<Void> internalError(Exception e) {
         log.error("Unhandled exception", e);
-        return QTResponse.fail(HttpStatus.INTERNAL_SERVER_ERROR.value(), "Internal Server Error");
+        return QTResponse.fail(HttpStatus.INTERNAL_SERVER_ERROR.value(), e.toString());
     }
 }

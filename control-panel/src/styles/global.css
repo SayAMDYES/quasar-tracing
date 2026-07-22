@@ -738,30 +738,6 @@ body {
   }
 }
 
-.async-error-detail {
-  margin-top: 12px;
-  max-width: min(680px, 80vw);
-  color: var(--text-secondary);
-  font-size: 12px;
-  text-align: left;
-}
-
-.async-error-detail summary {
-  cursor: pointer;
-}
-
-.async-error-detail code {
-  display: block;
-  margin-top: 8px;
-  padding: 8px 10px;
-  overflow: auto;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface-muted);
-  color: var(--text-secondary);
-  white-space: pre-wrap;
-}
-
 @media (max-width: 900px) {
   .app-content {
     padding: 20px 14px 18px;

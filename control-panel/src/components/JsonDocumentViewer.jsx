@@ -233,12 +233,12 @@ export default function JsonDocumentViewer({
         </Tooltip>
       </div>
 
-      {searchError && <Alert type="error" showIcon message={t('traceDetail.jsonSearchError')} />}
+      {searchError && <Alert type="error" showIcon message={searchError.message} />}
       {indexError && (
         <Alert
           type="error"
           showIcon
-          message={t('traceDetail.jsonIndexError')}
+          message={indexError.message}
           action={<Button size="small" onClick={() => setIndexAttempt((value) => value + 1)}>{t('common.retry')}</Button>}
         />
       )}

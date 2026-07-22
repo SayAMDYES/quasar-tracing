@@ -31,7 +31,7 @@ export default function TraceResultsDownload({ request, total = 0 }) {
   const [progress, setProgress] = useState({ completed: 0, total: 0, succeeded: 0, failed: 0 });
   const [failures, setFailures] = useState([]);
   const [partialDocuments, setPartialDocuments] = useState([]);
-  const [errorCode, setErrorCode] = useState(null);
+  const [errorMessage, setErrorMessage] = useState(null);
 
   useEffect(() => () => {
     controllerRef.current?.abort();
@@ -77,7 +77,7 @@ export default function TraceResultsDownload({ request, total = 0 }) {
     setRunning(true);
     setFailures([]);
     setPartialDocuments([]);
-    setErrorCode(null);
+    setErrorMessage(null);
     setProgress({ completed: 0, total: 0, succeeded: 0, failed: 0 });
     try {
       const snapshot = await searchTraces(
@@ -111,7 +111,7 @@ export default function TraceResultsDownload({ request, total = 0 }) {
       const documents = result.results.map(({ value }) => value);
       setFailures(result.failures);
       if (documents.length === 0) {
-        setErrorCode('ALL_DOWNLOADS_FAILED');
+        setErrorMessage('ALL_DOWNLOADS_FAILED');
       } else if (result.failures.length > 0) {
         setPartialDocuments(documents);
       } else {
@@ -120,9 +120,9 @@ export default function TraceResultsDownload({ request, total = 0 }) {
         message.success(t('traceDownload.completed'));
       }
     } catch (error) {
-      if (limitErrorRef.current) setErrorCode(limitErrorRef.current);
+      if (limitErrorRef.current) setErrorMessage(limitErrorRef.current);
       else if (controller.signal.aborted || error?.code === 'DOWNLOAD_CANCELLED') setOpen(false);
-      else setErrorCode(error?.code || 'TRACE_DOWNLOAD_FAILED');
+      else setErrorMessage(error?.message || error?.code || 'TRACE_DOWNLOAD_FAILED');
     } finally {
       controllerRef.current = null;
       setRunning(false);
@@ -131,13 +131,13 @@ export default function TraceResultsDownload({ request, total = 0 }) {
 
   const downloadPartial = async () => {
     setRunning(true);
-    setErrorCode(null);
+    setErrorMessage(null);
     try {
       await createDownload(partialDocuments, true, failures);
       setOpen(false);
       message.success(t('traceDownload.partialCompleted'));
     } catch (error) {
-      setErrorCode(error?.code || 'TRACE_DOWNLOAD_FAILED');
+      setErrorMessage(error?.message || error?.code || 'TRACE_DOWNLOAD_FAILED');
     } finally {
       setRunning(false);
     }
@@ -192,11 +192,11 @@ export default function TraceResultsDownload({ request, total = 0 }) {
         <Text type="secondary">
           {t('traceDownload.progress', progress)}
         </Text>
-        {errorCode && (
+        {errorMessage && (
           <Alert
             type="error"
             showIcon
-            message={t(`traceDownload.errors.${errorCode}`, { defaultValue: errorCode })}
+            message={errorMessage}
             style={{ marginTop: 12 }}
           />
         )}
@@ -218,7 +218,7 @@ export default function TraceResultsDownload({ request, total = 0 }) {
                 <List.Item>
                   <Space direction="vertical" size={0}>
                     <Text className="mono">{failure.item}</Text>
-                    <Text type="danger">{failure.code}</Text>
+                    <Text type="danger">{failure.message}</Text>
                   </Space>
                 </List.Item>
               )}

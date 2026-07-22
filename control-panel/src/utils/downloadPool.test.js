@@ -63,7 +63,7 @@ test('retries network and selected HTTP statuses with injected jitter', async ()
   assert.deepEqual(sleeps, Array(5).fill(625));
 });
 
-test('does not retry other 4xx and returns stable sanitized failures', async () => {
+test('does not retry other 4xx and retains the exception message', async () => {
   let attempts = 0;
   const result = await downloadTraceDocuments(['missing'], async () => {
     attempts += 1;
@@ -76,7 +76,7 @@ test('does not retry other 4xx and returns stable sanitized failures', async () 
   assert.deepEqual(result.failures, [{
     item: 'missing',
     code: 'HTTP_404',
-    message: 'HTTP_404',
+    message: 'backend payload must not leak',
   }]);
 });
 
