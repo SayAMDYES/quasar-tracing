@@ -9,7 +9,6 @@ import {
   PartitionOutlined,
   ApartmentOutlined,
   FileSearchOutlined,
-  ImportOutlined,
   LineChartOutlined,
 } from '@ant-design/icons';
 
@@ -20,7 +19,6 @@ export const NAV = [
     groupKey: 'nav.explore',
     children: [
       { key: '/traces', labelKey: 'nav.traces', icon: <PartitionOutlined /> },
-      { key: '/traces/import', labelKey: 'nav.traceImport', icon: <ImportOutlined /> },
       { key: '/services', labelKey: 'nav.serviceMap', icon: <ApartmentOutlined /> },
       { key: '/logs', labelKey: 'nav.logs', icon: <FileSearchOutlined /> },
     ],
