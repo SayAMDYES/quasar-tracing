@@ -139,11 +139,23 @@ export default function SpanDetailDrawer({
 
   const items = span
     ? [
-        { key: 'span', label: t('span.spanId'), children: <CopyableId value={span.spanId} /> },
+        ...(span.statusMessage
+          ? [
+              {
+                key: 'msg',
+                label: t('span.statusMessage'),
+                children: <span style={{ color: 'var(--error)' }}>{span.statusMessage}</span>,
+              },
+            ]
+          : []),
         {
-          key: 'parent',
-          label: t('span.parentId'),
-          children: span.parentSpanId ? <CopyableId value={span.parentSpanId} /> : '—',
+          key: 'dur',
+          label: t('span.duration'),
+          children: (
+            <span className="num" style={{ fontWeight: 600 }}>
+              {formatDuration(span.durationNs)}
+            </span>
+          ),
         },
         {
           key: 'start',
@@ -157,24 +169,12 @@ export default function SpanDetailDrawer({
             <span className="num">+{formatDuration((span.timestamp - traceStart) * 1e6)}</span>
           ),
         },
+        { key: 'span', label: t('span.spanId'), children: <CopyableId value={span.spanId} /> },
         {
-          key: 'dur',
-          label: t('span.duration'),
-          children: (
-            <span className="num" style={{ fontWeight: 600 }}>
-              {formatDuration(span.durationNs)}
-            </span>
-          ),
+          key: 'parent',
+          label: t('span.parentId'),
+          children: span.parentSpanId ? <CopyableId value={span.parentSpanId} /> : '—',
         },
-        ...(span.statusMessage
-          ? [
-              {
-                key: 'msg',
-                label: t('span.statusMessage'),
-                children: <span style={{ color: 'var(--error)' }}>{span.statusMessage}</span>,
-              },
-            ]
-          : []),
       ]
     : [];
 

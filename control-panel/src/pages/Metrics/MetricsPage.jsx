@@ -54,6 +54,7 @@ import {
   buildLatencyChart,
 } from '@/charts/options';
 import PageHeader from '@/components/PageHeader';
+import Toolbar from '@/components/Toolbar';
 import { formatInt, formatMs, formatNumber, formatPercent } from '@/utils/format';
 import { buildInvestigationPath } from '@/utils/investigationContext';
 import { brand, neutral, percentileColors, status } from '@/theme/tokens';
@@ -95,18 +96,6 @@ function MetricStyles() {
           background:
             linear-gradient(135deg, rgba(242, 106, 27, 0.045), rgba(46, 125, 209, 0.035)),
             var(--surface);
-        }
-
-        .metrics-dashboard-toolbar {
-          margin-bottom: 16px;
-          border-color: rgba(242, 106, 27, 0.16) !important;
-          background:
-            linear-gradient(135deg, rgba(242, 106, 27, 0.035), rgba(46, 125, 209, 0.025)),
-            var(--surface);
-        }
-
-        .metrics-dashboard-toolbar .ant-card-body {
-          padding: 12px 16px;
         }
 
         .metrics-operation-bar {
@@ -474,20 +463,6 @@ function InstancePanel({ instances, selectedInstanceId, onInstanceChange }) {
       },
     },
     {
-      title: t('metrics.colRuntime'),
-      dataIndex: 'runtimeType',
-      width: 160,
-      render: (value) => {
-        const meta = runtimeMeta(value);
-        return (
-          <Tag color={value === 'pod' ? 'blue' : value === 'docker' ? 'orange' : 'default'} style={{ marginInlineEnd: 0 }}>
-            {t(meta.labelKey)}
-          </Tag>
-        );
-      },
-    },
-    { title: t('metrics.colRps'), dataIndex: 'rps', align: 'right', width: 96, render: (value) => <span className="num">{value.toFixed(1)}</span> },
-    {
       title: t('metrics.colErrorRate'),
       dataIndex: 'errorRate',
       align: 'right',
@@ -508,6 +483,20 @@ function InstancePanel({ instances, selectedInstanceId, onInstanceChange }) {
           {formatMs(value)}
         </span>
       ),
+    },
+    { title: t('metrics.colRps'), dataIndex: 'rps', align: 'right', width: 96, render: (value) => <span className="num">{value.toFixed(1)}</span> },
+    {
+      title: t('metrics.colRuntime'),
+      dataIndex: 'runtimeType',
+      width: 160,
+      render: (value) => {
+        const meta = runtimeMeta(value);
+        return (
+          <Tag color={value === 'pod' ? 'blue' : value === 'docker' ? 'orange' : 'default'} style={{ marginInlineEnd: 0 }}>
+            {t(meta.labelKey)}
+          </Tag>
+        );
+      },
     },
   ];
 
@@ -763,8 +752,6 @@ export default function MetricsPage() {
         </Space>
       ),
     },
-    { title: t('metrics.colRequests'), dataIndex: 'requestCount', align: 'right', width: 112, sorter: (a, b) => a.requestCount - b.requestCount, render: formatInt },
-    { title: t('metrics.colRps'), dataIndex: 'rps', align: 'right', width: 96, render: (v) => <span className="num">{v.toFixed(1)}</span> },
     {
       title: t('metrics.colErrorRate'),
       dataIndex: 'errorRate',
@@ -778,7 +765,6 @@ export default function MetricsPage() {
         </Tag>
       ),
     },
-    { title: 'p90', dataIndex: 'p90', align: 'right', width: 104, render: (v) => <span className="num">{formatMs(v)}</span> },
     {
       title: 'p99',
       dataIndex: 'p99',
@@ -791,6 +777,9 @@ export default function MetricsPage() {
         </span>
       ),
     },
+    { title: 'p90', dataIndex: 'p90', align: 'right', width: 104, render: (v) => <span className="num">{formatMs(v)}</span> },
+    { title: t('metrics.colRequests'), dataIndex: 'requestCount', align: 'right', width: 112, sorter: (a, b) => a.requestCount - b.requestCount, render: formatInt },
+    { title: t('metrics.colRps'), dataIndex: 'rps', align: 'right', width: 96, render: (v) => <span className="num">{v.toFixed(1)}</span> },
     {
       title: t('metrics.colDrilldown'),
       key: 'actions',
@@ -839,10 +828,7 @@ export default function MetricsPage() {
       <PageHeader title={t('metrics.title')} />
 
       {serviceOptions.length > 0 && (
-        <Card
-          className="metrics-dashboard-card metrics-dashboard-toolbar"
-          style={surfaceCardStyle}
-        >
+        <Toolbar className="query-toolbar metrics-dashboard-card">
           <div className="metrics-operation-bar">
             <div className="metrics-filter-group">
               <div className="metrics-filter-field">
@@ -936,7 +922,7 @@ export default function MetricsPage() {
             </div>
           </div>
 
-        </Card>
+        </Toolbar>
       )}
 
       <AsyncBoundary loading={loading && !data} error={error} onRetry={refetch}>

@@ -95,7 +95,6 @@ export default function ServicePanel({ name, range, autoRefreshRevision, open, o
 
   const endpointColumns = [
     { title: t('service.pOperation'), dataIndex: 'operation', ellipsis: true, render: (o) => <span className="mono table-cell-strong">{o}</span> },
-    { title: 'rps', dataIndex: 'rps', align: 'right', width: 70, render: (v) => <span className="num">{v.toFixed(1)}</span> },
     {
       title: t('service.pErr'),
       dataIndex: 'errorRate',
@@ -104,6 +103,7 @@ export default function ServicePanel({ name, range, autoRefreshRevision, open, o
       render: (v) => <span className="num" style={{ color: v > 0.05 ? statusColors.error : 'var(--text-muted)' }}>{formatPercent(v, 1)}</span>,
     },
     { title: 'p99', dataIndex: 'p99', align: 'right', width: 80, render: (v) => <span className="num">{formatMs(v)}</span> },
+    { title: 'rps', dataIndex: 'rps', align: 'right', width: 70, render: (v) => <span className="num">{v.toFixed(1)}</span> },
   ];
 
   return (
@@ -150,11 +150,11 @@ export default function ServicePanel({ name, range, autoRefreshRevision, open, o
         {data && (
           <>
             <Space size={28} wrap style={{ marginBottom: 8 }}>
-              <Stat label={t('service.throughput')} value={formatInt(data.calls)} />
               <Stat label={t('service.errorRate')} value={formatPercent(data.errorRate)} color={data.errorRate > 0.05 ? statusColors.error : statusColors.ok} />
+              <Stat label="p99" value={formatDuration(data.p99)} color="var(--brand-strong)" />
+              <Stat label={t('service.throughput')} value={formatInt(data.calls)} />
               <Stat label="p50" value={formatDuration(data.p50)} />
               <Stat label="p90" value={formatDuration(data.p90)} />
-              <Stat label="p99" value={formatDuration(data.p99)} color="var(--brand-strong)" />
             </Space>
             <div style={{ marginTop: 4 }}>
               <Tag>{t(`serviceMap.${TYPE_KEY[data.type] || 'catService'}`)}</Tag>

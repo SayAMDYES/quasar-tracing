@@ -51,31 +51,9 @@ export default function TraceCompareTree({ rows, onSelect }) {
       render: (_, row) => (
         <div className="trace-compare-operation" style={{ paddingLeft: row.depth * 16 }}>
           <span className="trace-compare-tree-branch" />
-          <span className="trace-compare-operation-name">{row.signature.name}</span>
           <span className="trace-compare-service">{row.signature.serviceName}</span>
+          <span className="trace-compare-operation-name">{row.signature.name}</span>
         </div>
-      ),
-    },
-    {
-      title: 'A',
-      key: 'aDuration',
-      width: 120,
-      render: (_, row) => row.duration.aNano == null ? '—' : formatDuration(Number(row.duration.aNano)),
-    },
-    {
-      title: 'B',
-      key: 'bDuration',
-      width: 120,
-      render: (_, row) => row.duration.bNano == null ? '—' : formatDuration(Number(row.duration.bNano)),
-    },
-    {
-      title: 'Delta',
-      key: 'delta',
-      width: 130,
-      render: (_, row) => (
-        <span className={row.change.regression ? 'trace-compare-regression' : 'num'}>
-          {signedDuration(row.duration.deltaNano)}
-        </span>
       ),
     },
     {
@@ -105,6 +83,28 @@ export default function TraceCompareTree({ rows, onSelect }) {
           {row.change.criticalPathChanged && <Tag>{t('traceCompare.criticalChanged')}</Tag>}
         </Space>
       ),
+    },
+    {
+      title: 'Delta',
+      key: 'delta',
+      width: 130,
+      render: (_, row) => (
+        <span className={row.change.regression ? 'trace-compare-regression' : 'num'}>
+          {signedDuration(row.duration.deltaNano)}
+        </span>
+      ),
+    },
+    {
+      title: 'A',
+      key: 'aDuration',
+      width: 120,
+      render: (_, row) => row.duration.aNano == null ? '—' : formatDuration(Number(row.duration.aNano)),
+    },
+    {
+      title: 'B',
+      key: 'bDuration',
+      width: 120,
+      render: (_, row) => row.duration.bNano == null ? '—' : formatDuration(Number(row.duration.bNano)),
     },
   ];
 

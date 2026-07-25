@@ -18,11 +18,11 @@ function SpanSide({ label, span }) {
         size="small"
         column={1}
         items={[
-          { key: 'operation', label: t('traceCompare.operation'), children: span.name },
           { key: 'service', label: t('traceCompare.service'), children: span.serviceName },
-          { key: 'kind', label: t('traceCompare.kind'), children: span.kind },
-          { key: 'duration', label: t('traceCompare.duration'), children: formatDuration(span.durationNano) },
+          { key: 'operation', label: t('traceCompare.operation'), children: span.name },
           { key: 'status', label: t('traceCompare.status'), children: `${span.status.code}${span.status.message ? ` · ${span.status.message}` : ''}` },
+          { key: 'duration', label: t('traceCompare.duration'), children: formatDuration(span.durationNano) },
+          { key: 'kind', label: t('traceCompare.kind'), children: span.kind },
         ]}
       />
     </div>

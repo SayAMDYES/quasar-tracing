@@ -83,33 +83,17 @@ export default function TraceDiagnostics({ analysis, onSelectSpan }) {
 
   const slowColumns = [
     {
-      title: t('traceSearch.colOperation'),
-      key: 'operation',
-      width: 280,
-      ellipsis: true,
-      render: (_, record) => <LongValue value={record.span.name} mono />,
-    },
-    {
       title: t('traceSearch.service'),
       key: 'service',
       width: 180,
       render: (_, record) => <ServiceCell service={record.span.service} />,
     },
     {
-      title: t('traceSearch.colDuration'),
-      key: 'duration',
-      width: 126,
-      align: 'right',
-      render: (_, record) => (
-        <span className="num">{formatDuration(spanDurationMs(record.span) * 1e6)}</span>
-      ),
-    },
-    {
-      title: t('traceDetail.selfDuration'),
-      dataIndex: 'selfDurationMs',
-      width: 126,
-      align: 'right',
-      render: (durationMs) => <span className="num">{formatDuration(durationMs * 1e6)}</span>,
+      title: t('traceSearch.colOperation'),
+      key: 'operation',
+      width: 280,
+      ellipsis: true,
+      render: (_, record) => <LongValue value={record.span.name} mono />,
     },
     {
       title: t('traceDetail.criticalPath'),
@@ -122,34 +106,12 @@ export default function TraceDiagnostics({ analysis, onSelectSpan }) {
           : <span className="muted">—</span>
       ),
     },
-  ];
-
-  const errorColumns = [
     {
-      title: t('traceSearch.colOperation'),
-      key: 'operation',
-      width: 260,
-      ellipsis: true,
-      render: (_, record) => <LongValue value={record.span.name} mono />,
-    },
-    {
-      title: t('traceSearch.service'),
-      key: 'service',
-      width: 180,
-      render: (_, record) => <ServiceCell service={record.span.service} />,
-    },
-    {
-      title: t('traceSearch.colStatus'),
-      key: 'status',
-      width: 104,
-      render: (_, record) => <SpanStatusTag value={record.span.statusCode} />,
-    },
-    {
-      title: t('traceDetail.spanPath'),
-      dataIndex: 'path',
-      width: 360,
-      ellipsis: true,
-      render: (path) => <LongValue value={(path || []).join(' / ')} />,
+      title: t('traceDetail.selfDuration'),
+      dataIndex: 'selfDurationMs',
+      width: 126,
+      align: 'right',
+      render: (durationMs) => <span className="num">{formatDuration(durationMs * 1e6)}</span>,
     },
     {
       title: t('traceSearch.colDuration'),
@@ -159,6 +121,44 @@ export default function TraceDiagnostics({ analysis, onSelectSpan }) {
       render: (_, record) => (
         <span className="num">{formatDuration(spanDurationMs(record.span) * 1e6)}</span>
       ),
+    },
+  ];
+
+  const errorColumns = [
+    {
+      title: t('traceSearch.service'),
+      key: 'service',
+      width: 180,
+      render: (_, record) => <ServiceCell service={record.span.service} />,
+    },
+    {
+      title: t('traceSearch.colOperation'),
+      key: 'operation',
+      width: 260,
+      ellipsis: true,
+      render: (_, record) => <LongValue value={record.span.name} mono />,
+    },
+    {
+      title: t('traceSearch.colStatus'),
+      key: 'status',
+      width: 104,
+      render: (_, record) => <SpanStatusTag value={record.span.statusCode} />,
+    },
+    {
+      title: t('traceSearch.colDuration'),
+      key: 'duration',
+      width: 126,
+      align: 'right',
+      render: (_, record) => (
+        <span className="num">{formatDuration(spanDurationMs(record.span) * 1e6)}</span>
+      ),
+    },
+    {
+      title: t('traceDetail.spanPath'),
+      dataIndex: 'path',
+      width: 360,
+      ellipsis: true,
+      render: (path) => <LongValue value={(path || []).join(' / ')} />,
     },
   ];
 

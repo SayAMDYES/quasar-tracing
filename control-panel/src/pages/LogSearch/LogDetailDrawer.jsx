@@ -168,11 +168,6 @@ export default function LogDetailDrawer({ log, open, onClose }) {
             bordered
             items={[
               {
-                key: 'time',
-                label: t('log.timestamp'),
-                children: <span className="num">{formatTimestamp(log.timestamp)}</span>,
-              },
-              {
                 key: 'trace',
                 label: t('log.traceId'),
                 children: log.traceId ? <CopyableId value={log.traceId} /> : <span className="muted">{t('log.notCorrelated')}</span>,
@@ -181,6 +176,11 @@ export default function LogDetailDrawer({ log, open, onClose }) {
                 key: 'span',
                 label: t('log.spanId'),
                 children: log.spanId ? <CopyableId value={log.spanId} /> : <span className="muted">—</span>,
+              },
+              {
+                key: 'time',
+                label: t('log.timestamp'),
+                children: <span className="num">{formatTimestamp(log.timestamp)}</span>,
               },
             ]}
           />

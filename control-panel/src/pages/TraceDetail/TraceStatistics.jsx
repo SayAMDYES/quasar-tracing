@@ -74,13 +74,6 @@ export default function TraceStatistics({ analysis, onSelectSpan }) {
 
   const metricColumns = [
     {
-      title: t('traceDetail.mSpans'),
-      dataIndex: 'spanCount',
-      width: 88,
-      align: 'right',
-      render: (count) => <span className="num">{count}</span>,
-    },
-    {
       title: t('traceDetail.mErrors'),
       dataIndex: 'errorCount',
       width: 88,
@@ -113,6 +106,13 @@ export default function TraceStatistics({ analysis, onSelectSpan }) {
       render: (durationMs) => <span className="num">{formatDuration(durationMs * 1e6)}</span>,
     },
     {
+      title: t('traceDetail.mSpans'),
+      dataIndex: 'spanCount',
+      width: 88,
+      align: 'right',
+      render: (count) => <span className="num">{count}</span>,
+    },
+    {
       title: t('traceDetail.criticalSpanCount'),
       dataIndex: 'criticalSpanCount',
       width: 116,
@@ -133,17 +133,17 @@ export default function TraceStatistics({ analysis, onSelectSpan }) {
 
   const operationColumns = [
     {
+      title: t('traceSearch.service'),
+      dataIndex: 'service',
+      width: 220,
+      render: (service) => <ServiceCell service={service} />,
+    },
+    {
       title: t('traceSearch.colOperation'),
       dataIndex: 'operation',
       width: 340,
       ellipsis: true,
       render: (operation) => <LongValue value={operation} />,
-    },
-    {
-      title: t('traceSearch.service'),
-      dataIndex: 'service',
-      width: 220,
-      render: (service) => <ServiceCell service={service} />,
     },
     ...metricColumns,
   ];

@@ -129,8 +129,8 @@ export default function TraceImportPage() {
                     ]}
                   >
                     <Space direction="vertical" size={0}>
-                      <Text className="mono">{trace.traceId}</Text>
-                      <Text type="secondary">{trace.root.serviceName} / {trace.root.name}</Text>
+                      <Text strong>{trace.root.serviceName} / {trace.root.name}</Text>
+                      <Text type="secondary" className="mono">{trace.traceId}</Text>
                     </Space>
                   </List.Item>
                 )}

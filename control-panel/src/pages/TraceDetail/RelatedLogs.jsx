@@ -52,29 +52,29 @@ export default function RelatedLogs({ traceId, logs, selectedSpan, investigation
 
   const columns = [
     {
-      title: t('traceDetail.rlTime'),
-      dataIndex: 'timestamp',
-      width: 126,
-      render: (ts) => <span className="num muted">{formatTime(ts)}</span>,
-    },
-    { title: t('traceDetail.rlLevel'), dataIndex: 'severity', width: 80, render: (s) => <SeverityTag value={s} /> },
-    {
       title: t('traceDetail.rlService'),
       dataIndex: 'service',
       width: 180,
       render: (s) => <ServiceBadge name={s} />,
+    },
+    { title: t('traceDetail.rlLevel'), dataIndex: 'severity', width: 80, render: (s) => <SeverityTag value={s} /> },
+    {
+      title: t('traceDetail.rlMessage'),
+      dataIndex: 'body',
+      ellipsis: true,
+      render: (b) => <span className="mono table-cell-strong">{b}</span>,
+    },
+    {
+      title: t('traceDetail.rlTime'),
+      dataIndex: 'timestamp',
+      width: 126,
+      render: (ts) => <span className="num muted">{formatTime(ts)}</span>,
     },
     {
       title: t('traceDetail.rlSpanId'),
       dataIndex: 'spanId',
       width: 130,
       render: (id) => (id ? <CopyableId value={id} short head={8} /> : <span className="muted">—</span>),
-    },
-    {
-      title: t('traceDetail.rlMessage'),
-      dataIndex: 'body',
-      ellipsis: true,
-      render: (b) => <span className="mono table-cell-strong">{b}</span>,
     },
   ];
 

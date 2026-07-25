@@ -192,7 +192,12 @@ export default function TraceDetailPage() {
     <>
       <PageHeader
         onBack={() => navigate(-1)}
-        title={summary ? summary.rootName : t('traceDetail.trace')}
+        title={summary ? (
+          <Space size={8} wrap>
+            <ServiceBadge name={summary.rootService} />
+            <span className="mono table-cell-strong">{summary.rootName}</span>
+          </Space>
+        ) : t('traceDetail.trace')}
         description={summary
           ? <CopyableId value={summary.traceId} />
           : currentError?.code === 'IMPORTED_SESSION_EXPIRED'
@@ -276,16 +281,15 @@ export default function TraceDetailPage() {
           <>
             <Card size="small" style={{ marginBottom: 16 }}>
               <Space size={40} wrap>
-                <Metric label={t('traceDetail.mDuration')} value={formatDuration(summary.durationNs)} color="var(--brand-strong)" />
-                <Metric label={t('traceDetail.mSpans')} value={summary.spanCount} />
-                <Metric label={t('traceDetail.mServices')} value={summary.services.length} />
                 <Metric
                   label={t('traceDetail.mErrors')}
                   value={summary.errorCount}
                   color={summary.errorCount ? statusColors.error : undefined}
                 />
+                <Metric label={t('traceDetail.mDuration')} value={formatDuration(summary.durationNs)} color="var(--brand-strong)" />
+                <Metric label={t('traceDetail.mSpans')} value={summary.spanCount} />
+                <Metric label={t('traceDetail.mServices')} value={summary.services.length} />
                 <Metric label={t('traceDetail.mStart')} value={formatTimestamp(summary.startTime)} />
-                <Metric label={t('traceDetail.mRootService')} value={<ServiceBadge name={summary.rootService} />} />
               </Space>
             </Card>
 
@@ -330,22 +334,6 @@ export default function TraceDetailPage() {
                     children: <TraceDiagnostics analysis={analysis} onSelectSpan={selectSpan} />,
                   },
                   {
-                    key: 'statistics',
-                    label: t('traceDetail.tabStatistics'),
-                    children: <TraceStatistics analysis={analysis} onSelectSpan={selectSpan} />,
-                  },
-                  {
-                    key: 'json',
-                    label: t('traceDetail.tabJson'),
-                    children: jsonVisited ? (
-                      <TraceJsonPanel
-                        traceId={traceId}
-                        source={source === 'archive' ? 'archive' : requestedSource}
-                        traceDocument={sourceDocument}
-                      />
-                    ) : null,
-                  },
-                  {
                     key: 'logs',
                     label: (
                       <Space size={6}>
@@ -366,6 +354,22 @@ export default function TraceDetailPage() {
                         investigationWindow={investigationWindow}
                       />
                     ),
+                  },
+                  {
+                    key: 'statistics',
+                    label: t('traceDetail.tabStatistics'),
+                    children: <TraceStatistics analysis={analysis} onSelectSpan={selectSpan} />,
+                  },
+                  {
+                    key: 'json',
+                    label: t('traceDetail.tabJson'),
+                    children: jsonVisited ? (
+                      <TraceJsonPanel
+                        traceId={traceId}
+                        source={source === 'archive' ? 'archive' : requestedSource}
+                        traceDocument={sourceDocument}
+                      />
+                    ) : null,
                   },
                 ]}
               />

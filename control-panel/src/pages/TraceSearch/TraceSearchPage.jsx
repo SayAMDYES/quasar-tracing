@@ -80,7 +80,7 @@ function isNestedInteractiveTarget(event) {
 
 function isRowActionTarget(event) {
   return event.target instanceof Element
-    && Boolean(event.target.closest('a, button, input, .ant-checkbox-wrapper'));
+    && Boolean(event.target.closest('a, button, input, .ant-checkbox-wrapper, .ant-typography-copy'));
 }
 
 function attributeConditionKey(condition) {
@@ -222,31 +222,44 @@ export default function TraceSearchPage() {
 
   const columns = [
     {
-      title: t('traceSearch.colTraceId'),
-      dataIndex: 'traceId',
-      width: 132,
-      render: (id) => <CopyableId value={id} short head={10} />,
-    },
-    {
-      title: t('traceArchive.source'),
-      dataIndex: 'source',
-      width: 96,
-      render: (value) => value === 'archive'
-        ? <Tag color="purple">{t('traceArchive.sourceArchive')}</Tag>
-        : <Tag>{t('traceArchive.sourceLive')}</Tag>,
-    },
-    {
-      title: t('traceSearch.colRootService'),
-      dataIndex: 'rootService',
-      width: 180,
-      render: (s) => <ServiceBadge name={s} />,
-    },
-    {
-      title: t('traceSearch.colOperation'),
-      dataIndex: 'rootName',
-      width: 420,
+      title: t('traceSearch.colTraceIdentity'),
+      key: 'traceIdentity',
+      width: 560,
       ellipsis: true,
-      render: (n) => <span className="mono table-cell-strong">{n}</span>,
+      render: (_, trace) => (
+        <Space direction="vertical" size={2} style={{ width: '100%' }}>
+          <Space size={8} wrap>
+            <ServiceBadge name={trace.rootService} />
+            <span className="mono table-cell-strong" title={trace.rootName}>
+              {trace.rootName}
+            </span>
+            {trace.source === 'archive'
+              ? <Tag color="purple">{t('traceArchive.sourceArchive')}</Tag>
+              : <Tag>{t('traceArchive.sourceLive')}</Tag>}
+          </Space>
+          <Space size={6} wrap>
+            <Text type="secondary" style={{ fontSize: 11 }}>{t('traceSearch.colTraceId')}</Text>
+            <CopyableId value={trace.traceId} short head={14} />
+          </Space>
+        </Space>
+      ),
+    },
+    {
+      title: t('traceSearch.colStatus'),
+      dataIndex: 'status',
+      width: 92,
+      render: (s) => <SpanStatusTag value={s} />,
+    },
+    {
+      title: t('traceSearch.colErrors'),
+      dataIndex: 'errorCount',
+      width: 76,
+      align: 'right',
+      render: (v) => (
+        <span className="num" style={{ color: v > 0 ? statusColors.error : 'var(--text-muted)' }}>
+          {v}
+        </span>
+      ),
     },
     {
       title: t('traceSearch.colDuration'),
@@ -268,21 +281,18 @@ export default function TraceSearchPage() {
       render: (v) => <span className="num">{v}</span>,
     },
     {
-      title: t('traceSearch.colErrors'),
-      dataIndex: 'errorCount',
-      width: 76,
-      align: 'right',
-      render: (v) => (
-        <span className="num" style={{ color: v > 0 ? statusColors.error : 'var(--text-muted)' }}>
-          {v}
-        </span>
+      title: t('traceSearch.colStarted'),
+      dataIndex: 'startTime',
+      width: 150,
+      sorter: true,
+      sortDirections: ['descend', 'ascend', 'descend'],
+      sortOrder: tableSort.field === 'startTime' ? tableSort.order : null,
+      render: (ts) => (
+        <Space direction="vertical" size={0}>
+          <span className="num" style={{ fontSize: 12 }}>{formatTime(ts)}</span>
+          <Text type="secondary" style={{ fontSize: 11 }}>{fromNow(ts)}</Text>
+        </Space>
       ),
-    },
-    {
-      title: t('traceSearch.colStatus'),
-      dataIndex: 'status',
-      width: 92,
-      render: (s) => <SpanStatusTag value={s} />,
     },
     {
       title: t('traceSearch.colEnv'),
@@ -310,20 +320,6 @@ export default function TraceSearchPage() {
       width: 220,
       ellipsis: true,
       render: (v) => <MetadataCell value={v} />,
-    },
-    {
-      title: t('traceSearch.colStarted'),
-      dataIndex: 'startTime',
-      width: 150,
-      sorter: true,
-      sortDirections: ['descend', 'ascend', 'descend'],
-      sortOrder: tableSort.field === 'startTime' ? tableSort.order : null,
-      render: (ts) => (
-        <Space direction="vertical" size={0}>
-          <span className="num" style={{ fontSize: 12 }}>{formatTime(ts)}</span>
-          <Text type="secondary" style={{ fontSize: 11 }}>{fromNow(ts)}</Text>
-        </Space>
-      ),
     },
   ];
 
@@ -657,7 +653,7 @@ export default function TraceSearchPage() {
           }),
         }}
         pagination={{ pageSize: 20, showSizeChanger: false, size: 'small' }}
-        scroll={{ x: 1694 }}
+        scroll={{ x: 1852 }}
         onChange={(_, __, sorter) => {
           const next = Array.isArray(sorter) ? sorter[0] : sorter;
           if (TRACE_SORT_FIELDS[next?.field] && next.order) {
@@ -677,7 +673,7 @@ export default function TraceSearchPage() {
           },
           role: 'button',
           tabIndex: 0,
-          'aria-label': `${t('traceSearch.colTraceId')} ${r.traceId}`,
+          'aria-label': `${r.rootService || ''} ${r.rootName || ''} ${r.traceId}`.trim(),
           style: { cursor: 'pointer' },
         })}
         locale={{

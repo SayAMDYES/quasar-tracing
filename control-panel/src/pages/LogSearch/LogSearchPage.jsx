@@ -259,24 +259,36 @@ export default function LogSearchPage() {
 
   const columns = [
     {
-      title: t('logs.colTime'),
-      dataIndex: 'timestamp',
-      width: 126,
-      render: (ts) => <span className="num muted">{formatTime(ts)}</span>,
-    },
-    { title: t('logs.colLevel'), dataIndex: 'severity', width: 84, render: (s) => <SeverityTag value={s} /> },
-    {
       title: t('logs.colService'),
       dataIndex: 'service',
       width: 190,
       render: (s) => <ServiceBadge name={s} />,
     },
+    { title: t('logs.colLevel'), dataIndex: 'severity', width: 84, render: (s) => <SeverityTag value={s} /> },
     {
       title: t('logs.colMessage'),
       dataIndex: 'body',
       width: 560,
       ellipsis: true,
       render: (b) => <span className="mono table-cell-strong">{b}</span>,
+    },
+    {
+      title: t('logs.colTime'),
+      dataIndex: 'timestamp',
+      width: 126,
+      render: (ts) => <span className="num muted">{formatTime(ts)}</span>,
+    },
+    {
+      title: t('logs.colTrace'),
+      dataIndex: 'traceId',
+      width: 132,
+      render: (id) => (id ? <CopyableId value={id} short head={8} /> : <span className="muted">—</span>),
+    },
+    {
+      title: t('logs.colSpan'),
+      dataIndex: 'spanId',
+      width: 132,
+      render: (id) => (id ? <CopyableId value={id} short head={8} /> : <span className="muted">—</span>),
     },
     {
       title: t('logs.environment'),
@@ -298,18 +310,6 @@ export default function LogSearchPage() {
       width: 220,
       ellipsis: true,
       render: (v) => <MetadataCell value={v} />,
-    },
-    {
-      title: t('logs.colTrace'),
-      dataIndex: 'traceId',
-      width: 132,
-      render: (id) => (id ? <CopyableId value={id} short head={8} /> : <span className="muted">—</span>),
-    },
-    {
-      title: t('logs.colSpan'),
-      dataIndex: 'spanId',
-      width: 132,
-      render: (id) => (id ? <CopyableId value={id} short head={8} /> : <span className="muted">—</span>),
     },
   ];
 

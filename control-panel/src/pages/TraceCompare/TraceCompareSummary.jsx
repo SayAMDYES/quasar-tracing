@@ -21,11 +21,11 @@ function signed(value, formatter) {
 export default function TraceCompareSummary({ summary }) {
   const { t } = useTranslation();
   const metrics = [
-    { key: 'duration', label: t('traceCompare.totalDuration'), duration: true },
-    { key: 'spanCount', label: t('traceCompare.spanCount') },
     { key: 'errorCount', label: t('traceCompare.errorCount') },
-    { key: 'serviceCount', label: t('traceCompare.serviceCount') },
+    { key: 'duration', label: t('traceCompare.totalDuration'), duration: true },
     { key: 'criticalPathDuration', label: t('traceCompare.criticalDuration'), duration: true },
+    { key: 'spanCount', label: t('traceCompare.spanCount') },
+    { key: 'serviceCount', label: t('traceCompare.serviceCount') },
   ];
   return (
     <div className="trace-compare-summary">

@@ -66,12 +66,16 @@ export default function OverviewPage() {
   const healthColumns = [
     { title: t('overview.colService'), dataIndex: 'name', width: 240, render: (name) => <ServiceBadge name={name} /> },
     {
-      title: t('overview.colThroughput'),
-      dataIndex: 'calls',
-      align: 'right',
-      width: 128,
-      sorter: (a, b) => a.calls - b.calls,
-      render: (v) => <span className="num">{formatInt(v)}</span>,
+      title: '',
+      dataIndex: 'errorRate',
+      key: 'health',
+      width: 104,
+      render: (v) => {
+        const health = serviceHealth(v);
+        if (health === 'unhealthy') return <Tag color="error">{t('overview.unhealthy')}</Tag>;
+        if (health === 'degraded') return <Tag color="warning">{t('overview.degraded')}</Tag>;
+        return <Tag color="success">{t('overview.healthy')}</Tag>;
+      },
     },
     {
       title: t('overview.colErrorRate'),
@@ -95,33 +99,29 @@ export default function OverviewPage() {
       render: (v) => <span className="num">{formatMs(v / 1e6)}</span>,
     },
     {
-      title: '',
-      dataIndex: 'errorRate',
-      key: 'health',
-      width: 104,
-      render: (v) => {
-        const health = serviceHealth(v);
-        if (health === 'unhealthy') return <Tag color="error">{t('overview.unhealthy')}</Tag>;
-        if (health === 'degraded') return <Tag color="warning">{t('overview.degraded')}</Tag>;
-        return <Tag color="success">{t('overview.healthy')}</Tag>;
-      },
+      title: t('overview.colThroughput'),
+      dataIndex: 'calls',
+      align: 'right',
+      width: 128,
+      sorter: (a, b) => a.calls - b.calls,
+      render: (v) => <span className="num">{formatInt(v)}</span>,
     },
   ];
 
   const errorColumns = [
-    {
-      title: t('overview.colTime'),
-      dataIndex: 'timestamp',
-      width: 126,
-      render: (ts) => <span className="num muted">{formatTime(ts)}</span>,
-    },
-    { title: t('overview.colLevel'), dataIndex: 'severity', width: 80, render: (s) => <SeverityTag value={s} /> },
     { title: t('overview.colService'), dataIndex: 'service', width: 190, render: (s) => <ServiceBadge name={s} /> },
+    { title: t('overview.colLevel'), dataIndex: 'severity', width: 80, render: (s) => <SeverityTag value={s} /> },
     {
       title: t('overview.colMessage'),
       dataIndex: 'body',
       ellipsis: true,
       render: (b) => <span className="mono table-cell-strong">{b}</span>,
+    },
+    {
+      title: t('overview.colTime'),
+      dataIndex: 'timestamp',
+      width: 126,
+      render: (ts) => <span className="num muted">{formatTime(ts)}</span>,
     },
     {
       title: t('overview.colTrace'),
