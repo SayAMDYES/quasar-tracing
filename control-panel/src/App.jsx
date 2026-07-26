@@ -11,7 +11,6 @@ import TraceDetailPage from '@/pages/TraceDetail/TraceDetailPage';
 import ServiceMapPage from '@/pages/ServiceMap/ServiceMapPage';
 import LogSearchPage from '@/pages/LogSearch/LogSearchPage';
 import MetricsPage from '@/pages/Metrics/MetricsPage';
-import TraceImportPage from '@/pages/TraceImport/TraceImportPage';
 import TraceComparePage from '@/pages/TraceCompare/TraceComparePage';
 
 export default function App() {
@@ -20,8 +19,6 @@ export default function App() {
       <Route element={<AppLayout />}>
         <Route path="/" element={<OverviewPage />} />
         <Route path="/traces" element={<TraceSearchPage />} />
-        <Route path="/traces/import" element={<TraceImportPage />} />
-        <Route path="/traces/imported/:sessionId" element={<TraceDetailPage />} />
         <Route path="/traces/compare" element={<TraceComparePage />} />
         <Route path="/traces/:traceId" element={<TraceDetailPage />} />
         <Route path="/services" element={<ServiceMapPage />} />

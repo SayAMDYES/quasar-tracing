@@ -55,10 +55,8 @@ export function createTraceWorkerClient(
   return {
     canonicalize: (document) => request('canonicalize', document),
     createDocument: (document) => request('createDocument', document),
-    createBundle: (traces, options) => request('createBundle', { traces, options }),
     segmentJson: (text, options) => request('segmentJson', { text, options }),
     searchJson: (text, query, maxMatches) => request('searchJson', { text, query, maxMatches }),
-    importTrace: (text, options) => request('importTrace', { text, options }),
     compare: (baseline, candidate) => request('compare', { baseline, candidate }),
     request,
     dispose() {

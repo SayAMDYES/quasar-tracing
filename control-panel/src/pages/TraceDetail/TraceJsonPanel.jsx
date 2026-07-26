@@ -1,5 +1,5 @@
 /**
- * Lazy normalized Trace Document view and single-Trace export actions.
+ * Lazy normalized Trace Document view and copy actions.
  *
  * @author Quasar
  */
@@ -22,7 +22,6 @@ export default function TraceJsonPanel({ traceId, source = 'auto', traceDocument
   const [error, setError] = useState(null);
   const [attempt, setAttempt] = useState(0);
   const [copying, setCopying] = useState(false);
-  const [downloading, setDownloading] = useState(false);
   const [actionError, setActionError] = useState(null);
 
   useEffect(() => () => workerClient.dispose(), [workerClient]);
@@ -59,34 +58,11 @@ export default function TraceJsonPanel({ traceId, source = 'auto', traceDocument
       await navigator.clipboard.writeText(artifact.canonical);
       message.success(t('traceDetail.jsonCopied'));
     } catch (cause) {
-      setActionError({ type: 'copy', cause });
+      setActionError(cause);
     } finally {
       setCopying(false);
     }
   }, [artifact, copying, message, t]);
-
-  const download = useCallback(async () => {
-    if (!artifact || downloading) return;
-    setDownloading(true);
-    setActionError(null);
-    try {
-      const bundleArtifact = await workerClient.createBundle([artifact.document], {
-        generatedAt: new Date().toISOString(),
-      });
-      const url = URL.createObjectURL(bundleArtifact.blob);
-      const anchor = document.createElement('a');
-      anchor.href = url;
-      anchor.download = `quasar-trace-${artifact.document.traceId}.json`;
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 0);
-    } catch (cause) {
-      setActionError({ type: 'download', cause });
-    } finally {
-      setDownloading(false);
-    }
-  }, [artifact, downloading, workerClient]);
 
   return (
     <div className="trace-json-panel">
@@ -102,11 +78,10 @@ export default function TraceJsonPanel({ traceId, source = 'auto', traceDocument
           className="trace-json-action-error"
           type="error"
           showIcon
-          message={actionError.type === 'copy'
-            ? t('traceDetail.jsonCopyError') : t('traceDetail.jsonDownloadError')}
-          description={actionError.cause?.message}
+          message={t('traceDetail.jsonCopyError')}
+          description={actionError?.message}
           action={(
-            <Button size="small" onClick={actionError.type === 'copy' ? copy : download}>
+            <Button size="small" onClick={copy}>
               {t('common.retry')}
             </Button>
           )}
@@ -122,9 +97,7 @@ export default function TraceJsonPanel({ traceId, source = 'auto', traceDocument
             text={artifact.canonical}
             workerClient={workerClient}
             onCopy={copy}
-            onDownload={download}
             copying={copying}
-            downloading={downloading}
           />
         )}
       </AsyncBoundary>

@@ -15,7 +15,6 @@ import { useTranslation } from 'react-i18next';
 import i18n, { normalizeLang } from '@/i18n';
 import { createAntdTheme } from '@/theme/antdTheme';
 import { AppProvider } from '@/context/AppContext';
-import { ImportedTraceProvider } from '@/context/ImportedTraceContext';
 import { ThemeProvider, useThemeMode } from '@/context/ThemeContext';
 import { TraceCompareSelectionProvider } from '@/context/TraceCompareSelectionContext';
 import App from './App';
@@ -33,11 +32,9 @@ function Root() {
       <AntApp>
         <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <AppProvider>
-            <ImportedTraceProvider>
-              <TraceCompareSelectionProvider>
-                <App />
-              </TraceCompareSelectionProvider>
-            </ImportedTraceProvider>
+            <TraceCompareSelectionProvider>
+              <App />
+            </TraceCompareSelectionProvider>
           </AppProvider>
         </BrowserRouter>
       </AntApp>

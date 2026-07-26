@@ -7,7 +7,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Button, Input, Space, Spin, Tooltip, Typography } from 'antd';
 import {
   CopyOutlined,
-  DownloadOutlined,
   EnterOutlined,
   SearchOutlined,
   UpOutlined,
@@ -58,9 +57,7 @@ export default function JsonDocumentViewer({
   text,
   workerClient,
   onCopy,
-  onDownload,
   copying = false,
-  downloading = false,
 }) {
   const { t } = useTranslation();
   const scrollRef = useRef(null);
@@ -218,17 +215,7 @@ export default function JsonDocumentViewer({
             icon={<CopyOutlined />}
             aria-label={t('traceDetail.jsonCopy')}
             loading={copying}
-            disabled={downloading}
             onClick={onCopy}
-          />
-        </Tooltip>
-        <Tooltip title={t('traceDetail.jsonDownload')}>
-          <Button
-            icon={<DownloadOutlined />}
-            aria-label={t('traceDetail.jsonDownload')}
-            loading={downloading}
-            disabled={copying}
-            onClick={onDownload}
           />
         </Tooltip>
       </div>

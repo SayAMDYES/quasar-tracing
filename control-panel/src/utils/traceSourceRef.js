@@ -5,7 +5,6 @@
  */
 
 const TRACE_ID_PATTERN = /^[0-9a-f]{32}$/;
-const SESSION_ID_PATTERN = /^[A-Za-z0-9-]{1,128}$/;
 
 export function liveTraceRef(traceId) {
   const normalized = String(traceId || '').toLowerCase();
@@ -17,10 +16,6 @@ export function archiveTraceRef(traceId) {
   return TRACE_ID_PATTERN.test(normalized) ? `archive:${normalized}` : null;
 }
 
-export function importedTraceRef(sessionId) {
-  return SESSION_ID_PATTERN.test(String(sessionId || '')) ? `import:${sessionId}` : null;
-}
-
 export function parseTraceSourceRef(value) {
   if (typeof value !== 'string') return null;
   const separator = value.indexOf(':');
@@ -30,16 +25,13 @@ export function parseTraceSourceRef(value) {
   if ((source === 'live' || source === 'archive') && TRACE_ID_PATTERN.test(id)) {
     return { source, traceId: id, ref: value };
   }
-  if (source === 'import' && SESSION_ID_PATTERN.test(id)) return { source, sessionId: id, ref: value };
   return null;
 }
 
 export function traceRefPath(value) {
   const parsed = parseTraceSourceRef(value);
   if (!parsed) return null;
-  return parsed.source === 'live' || parsed.source === 'archive'
-    ? `/traces/${parsed.traceId}${parsed.source === 'archive' ? '?source=archive' : ''}`
-    : `/traces/imported/${parsed.sessionId}`;
+  return `/traces/${parsed.traceId}${parsed.source === 'archive' ? '?source=archive' : ''}`;
 }
 
 export function traceComparePath(baseline, candidate) {

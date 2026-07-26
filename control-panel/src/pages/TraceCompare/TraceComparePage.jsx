@@ -4,14 +4,13 @@
  * @author Quasar
  */
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Button, Space, Tag, Typography } from 'antd';
+import { Button, Space, Tag, Typography } from 'antd';
 import { ExportOutlined, SwapOutlined } from '@ant-design/icons';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import PageHeader from '@/components/PageHeader';
 import AsyncBoundary from '@/components/AsyncBoundary';
 import { fetchTraceDocument } from '@/api';
-import { useImportedTraces } from '@/context/ImportedTraceContext';
 import { createTraceWorkerClient } from '@/workers/traceWorkerClient';
 import {
   parseTraceSourceRef,
@@ -31,7 +30,6 @@ export default function TraceComparePage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const imported = useImportedTraces();
   const workerRef = useRef(null);
   if (!workerRef.current) workerRef.current = createTraceWorkerClient();
   const workerClient = workerRef.current;
@@ -57,12 +55,7 @@ export default function TraceComparePage() {
       if (ref.source === 'live' || ref.source === 'archive') {
         return fetchTraceDocument(ref.traceId, ref.source);
       }
-      const session = imported.getSession(ref.sessionId);
-      if (!session) return Promise.reject(compareError('IMPORTED_SESSION_EXPIRED'));
-      const document = imported.getTrace(ref.sessionId, session.primaryTraceId);
-      return document
-        ? Promise.resolve(document)
-        : Promise.reject(compareError('IMPORTED_TRACE_NOT_FOUND'));
+      return Promise.reject(compareError('INVALID_TRACE_SOURCE_REF'));
     };
     Promise.all([resolve(parsedA), resolve(parsedB)])
       .then(([baseline, candidate]) => workerClient.compare(baseline, candidate))
@@ -77,10 +70,9 @@ export default function TraceComparePage() {
         setLoading(false);
       });
     return () => { current = false; };
-  }, [attempt, baselineRef, candidateRef, imported, parsedA?.ref, parsedB?.ref, workerClient]);
+  }, [attempt, baselineRef, candidateRef, parsedA?.ref, parsedB?.ref, workerClient]);
 
   const swap = () => setSearchParams({ a: candidateRef, b: baselineRef });
-  const containsImport = parsedA?.source === 'import' || parsedB?.source === 'import';
   const baselinePath = traceRefPath(baselineRef);
   const candidatePath = traceRefPath(candidateRef);
 
@@ -91,14 +83,6 @@ export default function TraceComparePage() {
         title={t('traceCompare.title')}
         description={t('traceCompare.description')}
       />
-      {containsImport && (
-        <Alert
-          className="trace-compare-session-alert"
-          type="info"
-          showIcon
-          message={t('traceCompare.sessionOnly')}
-        />
-      )}
       <div className="trace-compare-source-bar">
         <div>
           <Tag color="blue">A · {t('traceCompare.baseline')}</Tag>
@@ -131,8 +115,6 @@ export default function TraceComparePage() {
         loading={loading}
         error={error}
         onRetry={() => setAttempt((value) => value + 1)}
-        errorTitle={error?.code === 'IMPORTED_SESSION_EXPIRED' ? t('traceImport.expiredTitle') : undefined}
-        errorDescription={error?.code === 'IMPORTED_SESSION_EXPIRED' ? t('traceImport.expired') : undefined}
       >
         {comparison && (
           <Space direction="vertical" size={16} style={{ width: '100%' }}>

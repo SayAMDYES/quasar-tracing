@@ -8,13 +8,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { Alert, Button, Card, Col, Collapse, Input, InputNumber, Row, Select, Space, Table, Tag, Typography } from 'antd';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { DiffOutlined, ImportOutlined } from '@ant-design/icons';
+import { DiffOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/PageHeader';
 import Toolbar from '@/components/Toolbar';
 import EChart from '@/components/EChart';
 import DurationBar from '@/components/DurationBar';
 import CopyableId from '@/components/CopyableId';
-import TraceResultsDownload from '@/components/TraceResultsDownload';
 import TraceSourceSelector from '@/components/TraceSourceSelector';
 import TraceAttributeFilterBuilder from '@/components/TraceAttributeFilterBuilder';
 import { ServiceBadge, SpanStatusTag, EnvTag } from '@/components/tags';
@@ -366,10 +365,6 @@ export default function TraceSearchPage() {
               value={searchSource}
               onChange={changeSource}
             />
-            <Button icon={<ImportOutlined />} onClick={() => navigate('/traces/import')}>
-              {t('nav.traceImport')}
-            </Button>
-            <TraceResultsDownload request={traceRequest} total={data?.total || 0} />
             <Button
               type="primary"
               icon={<DiffOutlined />}
@@ -637,11 +632,7 @@ export default function TraceSearchPage() {
           preserveSelectedRowKeys: true,
           selectedRowKeys: selectedServerTraceIds,
           onChange: (keys) => {
-            const importedRefs = compareSelection.selectedRefs.filter((ref) => (
-              parseTraceSourceRef(ref)?.source === 'import'
-            ));
             compareSelection.setSelectedRefs([
-              ...importedRefs,
               ...keys.map((traceId) => (searchSource === 'archive'
                 ? `archive:${traceId}` : liveTraceRef(traceId))).filter(Boolean),
             ]);

@@ -1,32 +1,22 @@
 /**
- * Canonical Quasar Trace Document v1 normalization and Bundle serialization.
+ * Canonical Quasar Trace Document v1 normalization.
  *
  * @author Quasar
  */
 
-export const TRACE_BUNDLE_MIME_TYPE = 'application/vnd.quasar.trace+json;version=1';
-
-export const MAX_BUNDLE_BYTES = 100 * 1024 * 1024;
 export const MAX_TRACE_DOCUMENT_BYTES = 50 * 1024 * 1024;
-export const MAX_TRACES_PER_BUNDLE = 100;
 export const MAX_SPANS_PER_TRACE = 20_000;
-export const MAX_SPANS_PER_BUNDLE = 50_000;
 
 export const TRACE_DOCUMENT_LIMITS = Object.freeze({
   maxDocumentBytes: MAX_TRACE_DOCUMENT_BYTES,
-  maxBundleBytes: MAX_BUNDLE_BYTES,
-  maxTracesPerBundle: MAX_TRACES_PER_BUNDLE,
   maxSpansPerTrace: MAX_SPANS_PER_TRACE,
-  maxSpansPerBundle: MAX_SPANS_PER_BUNDLE,
 });
 
 const TRACE_ID_PATTERN = /^[0-9a-fA-F]{32}$/;
 const SPAN_ID_PATTERN = /^[0-9a-fA-F]{16}$/;
 const UNSIGNED_DECIMAL_PATTERN = /^[0-9]+$/;
-const ISO_INSTANT_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/;
 const MAX_WARNING_MESSAGE_CODE_POINTS = 512;
 const canonicalObjectKeys = new WeakMap();
-const canonicalBundleArtifacts = new WeakMap();
 
 class TraceDocumentError extends Error {
   constructor(code) {
@@ -283,15 +273,6 @@ export function normalizeTraceDocument(document) {
   };
 }
 
-function normalizeFailure(failure) {
-  if (!failure || typeof failure !== 'object' || Array.isArray(failure)) fail('INVALID_FAILURE');
-  return {
-    traceId: normalizeTraceId(failure.traceId),
-    code: valueOrEmpty(failure.code),
-    message: valueOrEmpty(failure.message),
-  };
-}
-
 function appendCanonicalJson(value, depth, chunks) {
   if (value === null || typeof value !== 'object') {
     chunks.push(JSON.stringify(value));
@@ -355,84 +336,4 @@ function deepFreeze(value, seen = new WeakSet()) {
   seen.add(value);
   Object.values(value).forEach((child) => deepFreeze(child, seen));
   return Object.freeze(value);
-}
-
-function verifyBundleBytes(bundle) {
-  const canonical = canonicalStringify(bundle);
-  const blob = new Blob([canonical], { type: TRACE_BUNDLE_MIME_TYPE });
-  if (blob.size > TRACE_DOCUMENT_LIMITS.maxBundleBytes) fail('BUNDLE_TOO_LARGE');
-  canonicalBundleArtifacts.set(bundle, { canonical, blob });
-  return canonical;
-}
-
-function verifyDocumentBytes(document) {
-  if (new Blob([canonicalStringify(document)]).size > TRACE_DOCUMENT_LIMITS.maxDocumentBytes) {
-    fail('TRACE_DOCUMENT_TOO_LARGE');
-  }
-}
-
-/** Creates a canonical v1 Bundle. Time is supplied by the caller to keep this function pure. */
-export function createTraceBundle(traces, options = {}) {
-  if (!Array.isArray(traces)) fail('INVALID_TRACES');
-  if ((options.version ?? 1) !== 1) fail('UNSUPPORTED_BUNDLE_VERSION');
-  if (traces.length > TRACE_DOCUMENT_LIMITS.maxTracesPerBundle) fail('TOO_MANY_TRACES');
-  const inputSpanCount = traces.reduce((total, trace) =>
-    total + (Array.isArray(trace?.spans) ? trace.spans.length : 0), 0);
-  if (inputSpanCount > TRACE_DOCUMENT_LIMITS.maxSpansPerBundle) {
-    fail('TOO_MANY_SPANS_PER_BUNDLE');
-  }
-  const generatedAt = valueOrEmpty(options.generatedAt);
-  if (!ISO_INSTANT_PATTERN.test(generatedAt) || Number.isNaN(Date.parse(generatedAt))) {
-    fail('INVALID_GENERATED_AT');
-  }
-  const partial = options.partial === true;
-  const failures = normalizeArray(options.failures, 'INVALID_FAILURES').map(normalizeFailure);
-  if (!partial && failures.length > 0) fail('INVALID_BUNDLE_FAILURES');
-
-  const normalizedTraces = traces.map(normalizeTraceDocument);
-  normalizedTraces.forEach(verifyDocumentBytes);
-  const spanCount = normalizedTraces.reduce((total, trace) => total + trace.spans.length, 0);
-  if (spanCount > TRACE_DOCUMENT_LIMITS.maxSpansPerBundle) fail('TOO_MANY_SPANS_PER_BUNDLE');
-  const bundle = {
-    schema: 'quasar.trace.bundle',
-    version: 1,
-    generatedAt,
-    generator: {
-      name: 'quasar-tracing',
-      version: valueOrEmpty(options.generatorVersion || '1.0.7'),
-    },
-    partial,
-    failures,
-    traces: normalizedTraces,
-  };
-  deepFreeze(bundle);
-  verifyBundleBytes(bundle);
-  return bundle;
-}
-
-/** Serializes an already canonical Bundle using two-space indentation and one trailing LF. */
-export function stableStringifyTraceBundle(bundle) {
-  const cached = canonicalBundleArtifacts.get(bundle);
-  if (cached) return cached.canonical;
-  if (!bundle || bundle.schema !== 'quasar.trace.bundle') fail('INVALID_BUNDLE_SCHEMA');
-  if (bundle.version !== 1) fail('UNSUPPORTED_BUNDLE_VERSION');
-  const canonical = createTraceBundle(bundle.traces, {
-    version: bundle.version,
-    generatedAt: bundle.generatedAt,
-    generatorVersion: bundle.generator?.version,
-    partial: bundle.partial,
-    failures: bundle.failures,
-  });
-  return canonicalBundleArtifacts.get(canonical).canonical;
-}
-
-/** Builds a Bundle and its canonical download bytes in one normalization pass. */
-export function createTraceBundleArtifact(traces, options = {}) {
-  const bundle = createTraceBundle(traces, options);
-  const { canonical, blob } = canonicalBundleArtifacts.get(bundle);
-  return {
-    bundle,
-    canonical,
-    blob,
-  };
 }

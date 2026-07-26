@@ -496,20 +496,28 @@ body {
   height: 32px;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   margin: 0;
   border: 1px solid var(--brand-glow);
   background: var(--brand-tint);
   color: var(--brand-strong);
   font-family: var(--font-mono);
+  white-space: nowrap;
 }
 
 .query-filter-actions {
   display: flex;
   align-items: flex-end;
   justify-content: flex-end;
+  justify-self: end;
   gap: 8px;
-  flex-wrap: wrap;
-  min-width: 0;
+  flex-wrap: nowrap;
+  min-width: max-content;
+  white-space: nowrap;
+}
+
+.query-filter-actions > * {
+  flex: 0 0 auto;
 }
 
 .query-advanced .ant-collapse-header {
@@ -782,10 +790,18 @@ body {
   .query-filter-field,
   .query-filter-field.is-wide,
   .query-filter-field.is-xwide,
-  .query-filter-field.is-compact {
+  .query-filter-field.is-compact,
+  .query-filter-actions {
     grid-column: 1 / -1;
     width: 100%;
     min-width: 0;
+  }
+
+  .query-filter-actions {
+    justify-content: flex-start;
+    justify-self: stretch;
+    flex-wrap: wrap;
+    white-space: normal;
   }
 
   .query-toolbar > div {

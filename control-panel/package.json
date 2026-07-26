@@ -9,7 +9,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test:trace": "node --test src/utils/traceAnalysis.test.js",
-    "test:control-panel": "node --test src/utils/traceAnalysis.test.js src/utils/traceSearchParams.test.js src/utils/investigationContext.test.js src/utils/traceDocument.test.js src/utils/jsonDocumentSegments.test.js src/utils/traceImport.test.js src/utils/importedTraceRepository.test.js src/utils/traceCompare.test.js src/utils/traceSourceRef.test.js src/utils/downloadPool.test.js src/utils/format.test.js src/theme/themeStorage.test.js src/theme/antdTheme.test.js src/charts/options.test.js"
+    "test:control-panel": "node --test src/utils/traceAnalysis.test.js src/utils/traceSearchParams.test.js src/utils/investigationContext.test.js src/utils/traceDocument.test.js src/utils/jsonDocumentSegments.test.js src/utils/traceCompare.test.js src/utils/traceSourceRef.test.js src/utils/format.test.js src/theme/themeStorage.test.js src/theme/antdTheme.test.js src/charts/options.test.js"
   },
   "dependencies": {
     "@ant-design/icons": "^5.5.1",

@@ -6,14 +6,10 @@ import client from '../api/client.js';
 import { fetchTraceDocument } from '../api/index.js';
 import { createTraceWorkerClient } from '../workers/traceWorkerClient.js';
 import {
-  TRACE_BUNDLE_MIME_TYPE,
   TRACE_DOCUMENT_LIMITS,
-  createTraceBundle,
-  createTraceBundleArtifact,
   createTraceDocumentArtifact,
   normalizeTraceDocument,
   stableStringifyTraceDocument,
-  stableStringifyTraceBundle,
 } from './traceDocument.js';
 
 const TRACE_ID = (suffix) => suffix.toString(16).padStart(32, '0');
@@ -42,11 +38,10 @@ function spans(count, traceSuffix = 1) {
   }));
 }
 
-function extractCanonicalTraces(canonicalBundle) {
-  const marker = '  "traces": ';
-  const start = canonicalBundle.indexOf(marker);
-  assert.notEqual(start, -1);
-  return canonicalBundle.slice(start + marker.length, -2).replace(/^  /gm, '');
+function stringifyDocuments(documents) {
+  return `[\n${documents.map((trace) => (
+    stableStringifyTraceDocument(trace).trimEnd().replace(/^/gm, '  ')
+  )).join(',\n')}\n]\n`;
 }
 
 test('matches the Java common golden documents byte for byte', async () => {
@@ -65,11 +60,7 @@ test('matches the Java common golden documents byte for byte', async () => {
     spans: [...trace.spans].reverse(),
   }));
 
-  const bundle = createTraceBundle(input, {
-    generatedAt: '2026-07-19T12:00:00.000Z',
-    generatorVersion: '1.0.7',
-  });
-  const actual = extractCanonicalTraces(stableStringifyTraceBundle(bundle));
+  const actual = stringifyDocuments(input);
   assert.equal(actual, expected);
   assert.match(actual, /"startTimeUnixNano": "18446744073709551616"/);
   assert.ok(actual.indexOf('"10": "ten"') < actual.indexOf('"2": "two"'));
@@ -146,64 +137,6 @@ test('rejects invalid topology fields with stable payload-free errors', () => {
   }
 });
 
-test('creates canonical v1 bundles and enforces producer limits', () => {
-  const trace = document(TRACE_ID(1), [span(1)]);
-  const bundle = createTraceBundle([trace], {
-    generatedAt: '2026-07-19T12:00:00.000Z',
-    generatorVersion: '1.0.7',
-  });
-
-  assert.deepEqual(Object.keys(bundle), [
-    'schema', 'version', 'generatedAt', 'generator', 'partial', 'failures', 'traces',
-  ]);
-  assert.equal(TRACE_BUNDLE_MIME_TYPE, 'application/vnd.quasar.trace+json;version=1');
-  const canonical = stableStringifyTraceBundle(bundle);
-  assert.equal(canonical, `${JSON.stringify(bundle, null, 2)}\n`);
-  assert.equal(stableStringifyTraceBundle({
-    traces: bundle.traces,
-    failures: [],
-    partial: false,
-    generator: { version: '1.0.7', name: 'ignored' },
-    generatedAt: bundle.generatedAt,
-    version: 1,
-    schema: 'quasar.trace.bundle',
-  }), canonical);
-  assert.equal(new Blob([canonical], { type: TRACE_BUNDLE_MIME_TYPE }).size,
-    new TextEncoder().encode(canonical).byteLength);
-  const artifact = createTraceBundleArtifact([trace], {
-    generatedAt: '2026-07-19T12:00:00.000Z',
-    generatorVersion: '1.0.7',
-  });
-  assert.equal(artifact.canonical, stableStringifyTraceBundle(artifact.bundle));
-  assert.equal(artifact.blob.size, new TextEncoder().encode(artifact.canonical).byteLength);
-  assert.ok(Object.isFrozen(artifact.bundle));
-  assert.ok(Object.isFrozen(artifact.bundle.traces));
-  assert.ok(Object.isFrozen(artifact.bundle.traces[0].spans[0].spanAttributes));
-  assert.throws(() => { artifact.bundle.generatedAt = 'changed'; }, TypeError);
-  assert.throws(() => { artifact.bundle.traces.push(trace); }, TypeError);
-  assert.equal(TRACE_DOCUMENT_LIMITS.maxBundleBytes, 100 * 1024 * 1024);
-
-  assert.throws(() => createTraceBundle([trace], {
-    generatedAt: '2026-07-19T12:00:00.000Z', partial: false,
-    failures: [{ traceId: TRACE_ID(2), code: 'NOT_FOUND', message: 'Not found' }],
-  }), { message: 'INVALID_BUNDLE_FAILURES' });
-  assert.throws(() => createTraceBundle([trace], {
-    generatedAt: '2026-07-19T12:00:00.000Z', version: 2,
-  }), { message: 'UNSUPPORTED_BUNDLE_VERSION' });
-  assert.throws(() => createTraceBundle(Array.from({ length: 101 }, () => trace), {
-    generatedAt: '2026-07-19T12:00:00.000Z',
-  }), { message: 'TOO_MANY_TRACES' });
-
-  const partial = createTraceBundle([trace], {
-    generatedAt: '2026-07-19T12:00:00.000Z', partial: true,
-    failures: [{ traceId: TRACE_ID(2), code: 'NOT_FOUND', message: 'Not found' }],
-  });
-  assert.equal(partial.partial, true);
-  assert.deepEqual(partial.failures[0], {
-    traceId: TRACE_ID(2), code: 'NOT_FOUND', message: 'Not found',
-  });
-});
-
 test('creates canonical single-document view bytes with the 50 MiB limit', () => {
   const trace = document(TRACE_ID(1), [span(1)]);
   const normalized = normalizeTraceDocument(trace);
@@ -217,7 +150,7 @@ test('creates canonical single-document view bytes with the 50 MiB limit', () =>
   assert.equal(TRACE_DOCUMENT_LIMITS.maxDocumentBytes, 50 * 1024 * 1024);
 });
 
-test('accepts an exact 50 MiB document for a valid single-Trace Bundle', () => {
+test('accepts an exact 50 MiB document for a valid single Trace Document', () => {
   const makeSizedTrace = (value) => document(TRACE_ID(1), [span(1, '', '1', '1', {
     spanAttributes: { payload: value },
   })]);
@@ -231,11 +164,6 @@ test('accepts an exact 50 MiB document for a valid single-Trace Bundle', () => {
 
   const exact = createTraceDocumentArtifact(makeSizedTrace('x'.repeat(payloadBytes)));
   assert.equal(exact.byteSize, TRACE_DOCUMENT_LIMITS.maxDocumentBytes);
-  const bundle = createTraceBundleArtifact([exact.document], {
-    generatedAt: '2026-07-19T12:00:00.000Z',
-  });
-  assert.ok(bundle.blob.size <= TRACE_DOCUMENT_LIMITS.maxBundleBytes);
-  assert.deepEqual(bundle.bundle.traces, [exact.document]);
 });
 
 test('enforces exact span count boundaries through production canonicalization', () => {
@@ -245,57 +173,6 @@ test('enforces exact span count boundaries through production canonicalization',
     () => normalizeTraceDocument(document(TRACE_ID(1), spans(20_001))),
     { message: 'TOO_MANY_SPANS_PER_TRACE', code: 'TOO_MANY_SPANS_PER_TRACE' },
   );
-
-  const maximumBundle = createTraceBundle([
-    document(TRACE_ID(1), spans(20_000, 1)),
-    document(TRACE_ID(2), spans(20_000, 2)),
-    document(TRACE_ID(3), spans(10_000, 3)),
-  ], { generatedAt: '2026-07-19T12:00:00.000Z' });
-  assert.equal(maximumBundle.traces.reduce((total, trace) => total + trace.spans.length, 0), 50_000);
-  assert.throws(() => createTraceBundle([
-    document(TRACE_ID(1), spans(20_000, 1)),
-    document(TRACE_ID(2), spans(20_000, 2)),
-    document(TRACE_ID(3), spans(10_001, 3)),
-  ], { generatedAt: '2026-07-19T12:00:00.000Z' }), {
-    message: 'TOO_MANY_SPANS_PER_BUNDLE', code: 'TOO_MANY_SPANS_PER_BUNDLE',
-  });
-});
-
-test('accepts exactly 100 MiB across valid Documents and rejects one additional byte', () => {
-  const options = { generatedAt: '2026-07-19T12:00:00.000Z' };
-  const makeSizedTrace = (traceId, value) => document(traceId, [span(1, '', '1', '1', {
-    traceId,
-    spanAttributes: { payload: value },
-  })]);
-  const emptyCanonical = stableStringifyTraceBundle(createTraceBundle([
-    makeSizedTrace(TRACE_ID(1), ''),
-    makeSizedTrace(TRACE_ID(2), ''),
-  ], options));
-  const payloadBytes = TRACE_DOCUMENT_LIMITS.maxBundleBytes
-    - new TextEncoder().encode(emptyCanonical).byteLength;
-  const firstPayloadBytes = Math.floor(payloadBytes / 2);
-  const secondPayloadBytes = payloadBytes - firstPayloadBytes;
-
-  assert.throws(
-    () => createTraceBundle([
-      makeSizedTrace(TRACE_ID(1), 'x'.repeat(firstPayloadBytes)),
-      makeSizedTrace(TRACE_ID(2), 'x'.repeat(secondPayloadBytes + 1)),
-    ], options),
-    { message: 'BUNDLE_TOO_LARGE', code: 'BUNDLE_TOO_LARGE' },
-  );
-
-  const exactBundle = createTraceBundle([
-    makeSizedTrace(TRACE_ID(1), 'x'.repeat(firstPayloadBytes)),
-    makeSizedTrace(TRACE_ID(2), 'x'.repeat(secondPayloadBytes)),
-  ], options);
-  const exactCanonical = stableStringifyTraceBundle(exactBundle);
-  exactBundle.traces.forEach((trace) => {
-    assert.ok(createTraceDocumentArtifact(trace).byteSize <= TRACE_DOCUMENT_LIMITS.maxDocumentBytes);
-  });
-  assert.equal(new TextEncoder().encode(exactCanonical).byteLength,
-    TRACE_DOCUMENT_LIMITS.maxBundleBytes);
-  assert.equal(new Blob([exactCanonical], { type: TRACE_BUNDLE_MIME_TYPE }).size,
-    TRACE_DOCUMENT_LIMITS.maxBundleBytes);
 });
 
 test('worker client correlates requests and rejects pending work on dispose', async () => {
@@ -321,31 +198,6 @@ test('worker client correlates requests and rejects pending work on dispose', as
   assert.equal(worker.terminated, true);
   assert.throws(() => workerClient.canonicalize(document(TRACE_ID(3), [span(3)])), {
     message: 'TRACE_WORKER_DISPOSED', code: 'TRACE_WORKER_DISPOSED',
-  });
-});
-
-test('worker client exposes bundle work and becomes terminal after worker failure', async () => {
-  class FakeWorker {
-    listeners = new Map();
-    terminated = false;
-    postMessage(message) { this.lastMessage = message; }
-    addEventListener(type, listener) { this.listeners.set(type, listener); }
-    removeEventListener(type) { this.listeners.delete(type); }
-    terminate() { this.terminated = true; }
-    emit(type, data) { this.listeners.get(type)?.({ data }); }
-  }
-  const worker = new FakeWorker();
-  const workerClient = createTraceWorkerClient(worker);
-  const bundleRequest = workerClient.createBundle(
-    [document(TRACE_ID(1), [span(1)])],
-    { generatedAt: '2026-07-19T12:00:00.000Z' },
-  );
-  assert.equal(worker.lastMessage.operation, 'createBundle');
-  worker.emit('error');
-  await assert.rejects(bundleRequest, { message: 'TRACE_WORKER_ERROR', code: 'TRACE_WORKER_ERROR' });
-  assert.equal(worker.terminated, true);
-  assert.throws(() => workerClient.canonicalize(document(TRACE_ID(2), [span(2)])), {
-    message: 'TRACE_WORKER_ERROR', code: 'TRACE_WORKER_ERROR',
   });
 });
 
@@ -375,11 +227,6 @@ test('worker client exposes document, segment and search operations', async () =
   assert.equal(worker.lastMessage.operation, 'searchJson');
   worker.emit({ id: worker.lastMessage.id, ok: true, result: { offsets: [0], total: 1 } });
   assert.deepEqual(await searchRequest, { offsets: [0], total: 1 });
-
-  const importRequest = workerClient.importTrace('{}', { byteSize: 2 });
-  assert.equal(worker.lastMessage.operation, 'importTrace');
-  worker.emit({ id: worker.lastMessage.id, ok: true, result: { accepted: [] } });
-  assert.deepEqual(await importRequest, { accepted: [] });
 
   const compareRequest = workerClient.compare({ traceId: 'a' }, { traceId: 'b' });
   assert.equal(worker.lastMessage.operation, 'compare');
