@@ -6,7 +6,7 @@
  * @author Quasar
  */
 import { useMemo } from 'react';
-import { Row, Col, Card, Table, Typography, Tag } from 'antd';
+import { Alert, Row, Col, Card, Empty, Table, Typography, Tag } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import PageHeader from '@/components/PageHeader';
@@ -29,9 +29,10 @@ const DEGRADED_ERROR_RATE = 0.02;
 const UNHEALTHY_ERROR_RATE = 0.20;
 
 function delta(series, key) {
-  if (!series || series.length < 2) return 0;
-  const first = series[0][key] || 0.0001;
+  if (!series || series.length < 2) return null;
+  const first = Number(series[0][key] || 0);
   const last = series[series.length - 1][key] || 0;
+  if (first === 0) return null;
   return ((last - first) / Math.abs(first)) * 100;
 }
 
@@ -143,6 +144,10 @@ export default function OverviewPage() {
   ];
 
   const k = data?.kpis;
+  const hasServerRequests = data?.series?.some((point) => point.requests > 0 || point.errors > 0);
+  const throughputDelta = delta(data?.series, 'requests');
+  const errorRateDelta = delta(data?.series, 'errorRate');
+  const p99Delta = delta(data?.series, 'p99');
 
   return (
     <>
@@ -153,6 +158,16 @@ export default function OverviewPage() {
       <AsyncBoundary loading={loading && !data} error={error} onRetry={refetch}>
         {data && (
           <>
+            {!hasServerRequests ? (
+              <Alert
+                style={{ marginBottom: 16 }}
+                type="info"
+                showIcon
+                message={t('overview.noServerRequestsTitle')}
+                description={t('overview.noServerRequestsDescription')}
+              />
+            ) : null}
+
             <Row gutter={[16, 16]}>
               <Col xs={12} md={8} xl={4}>
                 <StatCard
@@ -160,9 +175,10 @@ export default function OverviewPage() {
                   value={formatNumber(k.rps)}
                   suffix={t('overview.suffixReqs')}
                   tone={brand.primary}
-                  delta={delta(data.series, 'requests')}
+                  delta={throughputDelta}
                   deltaGood
                   spark={data.series.map((p) => p.requests)}
+                  hint={t('overview.serverRpsHint')}
                 />
               </Col>
               <Col xs={12} md={8} xl={4}>
@@ -170,9 +186,10 @@ export default function OverviewPage() {
                   label={t('overview.kpiErrorRate')}
                   value={formatPercent(k.errorRate, 2)}
                   tone={status.error}
-                  delta={delta(data.series, 'errorRate')}
-                  deltaGood={delta(data.series, 'errorRate') <= 0}
+                  delta={errorRateDelta}
+                  deltaGood={errorRateDelta == null ? undefined : errorRateDelta <= 0}
                   spark={data.series.map((p) => p.errorRate)}
+                  hint={t('overview.serverErrorRateHint')}
                 />
               </Col>
               <Col xs={12} md={8} xl={4}>
@@ -181,9 +198,10 @@ export default function OverviewPage() {
                   value={formatInt(k.p99)}
                   suffix="ms"
                   tone={brand.primaryActive}
-                  delta={delta(data.series, 'p99')}
-                  deltaGood={delta(data.series, 'p99') <= 0}
+                  delta={p99Delta}
+                  deltaGood={p99Delta == null ? undefined : p99Delta <= 0}
                   spark={data.series.map((p) => p.p99)}
+                  hint={t('overview.serverP99Hint')}
                 />
               </Col>
               <Col xs={12} md={8} xl={4}>
@@ -224,7 +242,15 @@ export default function OverviewPage() {
             <Row gutter={[16, 16]} style={{ marginTop: 4 }}>
               <Col xs={24} xl={10}>
                 <Card title={t('overview.cardTopEndpoints')} size="small">
-                  <EChart option={charts.endpoints} height={260} />
+                  {data.topEndpoints.length ? (
+                    <EChart option={charts.endpoints} height={260} />
+                  ) : (
+                    <Empty
+                      image={Empty.PRESENTED_IMAGE_SIMPLE}
+                      description={t('overview.noServerEndpoints')}
+                      style={{ paddingBlock: 72 }}
+                    />
+                  )}
                 </Card>
               </Col>
               <Col xs={24} xl={14}>

@@ -356,17 +356,6 @@ function resourceValue(attrs, key) {
   return value == null || value === '' ? '—' : value;
 }
 
-function languageOf(instance) {
-  return String(instance?.resourceAttributes?.['telemetry.sdk.language'] || '').toLowerCase();
-}
-
-function isJavaInstance(instance) {
-  const attrs = instance?.resourceAttributes || {};
-  const language = languageOf(instance);
-  const runtimeName = String(attrs['process.runtime.name'] || attrs['process.runtime.description'] || '').toLowerCase();
-  return language === 'java' || runtimeName.includes('java') || runtimeName.includes('jvm');
-}
-
 function setMetricsSearchParams(setSearchParams, values) {
   setSearchParams((prev) => {
     const next = new URLSearchParams(prev);
@@ -381,7 +370,7 @@ function setMetricsSearchParams(setSearchParams, values) {
   });
 }
 
-function SectionTitle({ title, icon }) {
+function SectionTitle({ title, icon, description }) {
   return (
     <div style={{ marginBottom: 12 }}>
       <Space size={8} align="center">
@@ -390,12 +379,18 @@ function SectionTitle({ title, icon }) {
           {title}
         </Title>
       </Space>
+      {description ? (
+        <Text type="secondary" style={{ display: 'block', marginTop: 4, fontSize: 12 }}>
+          {description}
+        </Text>
+      ) : null}
     </div>
   );
 }
 
 function KpiCard({ icon, label, value, suffix, tone, deltaValue }) {
-  const stable = label === 'RPS' ? deltaValue >= 0 : deltaValue <= 0;
+  const hasDelta = deltaValue != null;
+  const stable = hasDelta && (label === 'RPS' ? deltaValue >= 0 : deltaValue <= 0);
   return (
     <Card
       className="metrics-dashboard-kpi"
@@ -412,18 +407,20 @@ function KpiCard({ icon, label, value, suffix, tone, deltaValue }) {
             border: `1px solid ${tone}28`,
           }}
         />
-        <Tag
-          color={stable ? 'success' : 'warning'}
-          style={{
-            marginInlineEnd: 0,
-            borderColor: stable ? 'rgba(56, 217, 150, 0.42)' : 'rgba(242, 106, 27, 0.42)',
-            background: stable ? 'rgba(56, 217, 150, 0.14)' : 'rgba(242, 106, 27, 0.14)',
-            color: stable ? metricTone.success : metricTone.orange,
-          }}
-        >
-          {deltaValue >= 0 ? '+' : ''}
-          {(deltaValue * 100).toFixed(1)}%
-        </Tag>
+        {hasDelta ? (
+          <Tag
+            color={stable ? 'success' : 'warning'}
+            style={{
+              marginInlineEnd: 0,
+              borderColor: stable ? 'rgba(56, 217, 150, 0.42)' : 'rgba(242, 106, 27, 0.42)',
+              background: stable ? 'rgba(56, 217, 150, 0.14)' : 'rgba(242, 106, 27, 0.14)',
+              color: stable ? metricTone.success : metricTone.orange,
+            }}
+          >
+            {deltaValue >= 0 ? '+' : ''}
+            {(deltaValue * 100).toFixed(1)}%
+          </Tag>
+        ) : null}
       </div>
       <Statistic
         title={<Text className="uppercase-label" style={{ color: neutral.textMuted }}>{label}</Text>}
@@ -556,7 +553,7 @@ function InstancePanel({ instances, selectedInstanceId, onInstanceChange }) {
           }}
         />
       ) : (
-        <Empty description={t('common.noData')} />
+        <Empty description={t('metrics.noServerInstances')} />
       )}
     </Card>
   );
@@ -684,14 +681,6 @@ export default function MetricsPage() {
       : instances.filter((instance) => instance.serviceInstanceId === selectedInstanceId),
     [instances, selectedInstanceId],
   );
-  const selectedInstance = selectedInstanceId === 'all'
-    ? null
-    : visibleInstances[0];
-  const javaInstances = visibleInstances.filter(isJavaInstance);
-  const shouldShowJvm = selectedInstanceId === 'all'
-    ? javaInstances.length > 0
-    : Boolean(selectedInstance && isJavaInstance(selectedInstance));
-
   useEffect(() => {
     if (!data || loading || requestedInstance === 'all' || selectedInstanceId === requestedInstance) return;
     setMetricsSearchParams(setSearchParams, { serviceInstanceId: 'all', instance: 'all' });
@@ -725,6 +714,7 @@ export default function MetricsPage() {
   const currentErrorRatio = current ? current.errorRate / 100 : summary.errorRate || 0;
   const displayErrorRatio = selectedInstanceId === 'all' ? currentErrorRatio : selectedInstanceErrorRate;
   const currentP99 = selectedInstanceId === 'all' ? (current?.p99 ?? summary.p99 ?? 0) : selectedInstanceP99;
+  const hasServerRequests = series.some((point) => point.requests > 0 || point.errors > 0);
   const baseErrorRatio = base ? base.errorRate / 100 : currentErrorRatio;
   const unhealthyEndpoints = endpoints.filter((endpoint) => endpoint.errorRate > 0.02 || endpoint.p99 > 800);
   const showAllEndpoints = endpointMode === 'all' || (endpointMode === 'unhealthy' && !unhealthyEndpoints.length);
@@ -825,7 +815,7 @@ export default function MetricsPage() {
   return (
     <div className="metrics-dashboard-shell">
       <MetricStyles />
-      <PageHeader title={t('metrics.title')} />
+      <PageHeader title={t('metrics.title')} description={t('metrics.description')} />
 
       {serviceOptions.length > 0 && (
         <Toolbar className="query-toolbar metrics-dashboard-card">
@@ -938,6 +928,9 @@ export default function MetricsPage() {
                   <Title level={4} style={{ margin: 0, color: neutral.heading, letterSpacing: -0.4 }}>
                     {t('metrics.serviceMetrics')}
                   </Title>
+                  <Text type="secondary" style={{ display: 'block', marginTop: 4, fontSize: 12 }}>
+                    {t('metrics.currentBucketHint')}
+                  </Text>
                 </div>
               </Flex>
 
@@ -949,7 +942,7 @@ export default function MetricsPage() {
                     value={formatNumber(currentRps)}
                     suffix="req/s"
                     tone={metricTone.primary}
-                    deltaValue={delta(currentRps, base?.requests)}
+                    deltaValue={hasServerRequests ? delta(currentRps, base?.requests) : null}
                   />
                 </Col>
                 <Col xs={24} md={12} xl={6}>
@@ -958,7 +951,9 @@ export default function MetricsPage() {
                     label={t('metrics.kErrorRate')}
                     value={formatPercent(displayErrorRatio)}
                     tone={errorTone}
-                    deltaValue={selectedInstanceId === 'all' ? delta(displayErrorRatio, baseErrorRatio) : 0}
+                    deltaValue={hasServerRequests && selectedInstanceId === 'all'
+                      ? delta(displayErrorRatio, baseErrorRatio)
+                      : null}
                   />
                 </Col>
                 <Col xs={24} md={12} xl={6}>
@@ -968,7 +963,7 @@ export default function MetricsPage() {
                     value={formatInt(currentP99)}
                     suffix="ms"
                     tone={p99Tone}
-                    deltaValue={delta(currentP99, base?.p99)}
+                    deltaValue={hasServerRequests ? delta(currentP99, base?.p99) : null}
                   />
                 </Col>
                 <Col xs={24} md={12} xl={6}>
@@ -977,17 +972,28 @@ export default function MetricsPage() {
                     label={t('metrics.kInstances')}
                     value={selectedInstanceId === 'all' ? instances.length : 1}
                     tone={metricTone.success}
-                    deltaValue={0}
+                    deltaValue={null}
                   />
                 </Col>
               </Row>
 
             </Card>
 
+            {!hasServerRequests ? (
+              <Alert
+                style={{ marginBottom: 16 }}
+                type="info"
+                showIcon
+                message={t('metrics.noServerRequestsTitle')}
+                description={t('metrics.noServerRequestsDescription')}
+              />
+            ) : null}
+
             <Card className="metrics-dashboard-light-card" style={{ ...surfaceCardStyle, marginBottom: 16 }} styles={{ body: { padding: 16 } }}>
               <SectionTitle
                 icon={<LineChartOutlined />}
                 title={t('metrics.cardRedTrend')}
+                description={t('metrics.trendRangeHint')}
               />
               <Row gutter={[16, 16]}>
                 <Col xs={24} lg={12}>
@@ -1023,7 +1029,16 @@ export default function MetricsPage() {
                   ]}
                 />
               </div>
-              <Table rowKey="operation" className="data-table" size="small" pagination={false} columns={endpointColumns} dataSource={endpointRows} scroll={{ x: 920 }} />
+              <Table
+                rowKey="operation"
+                className="data-table"
+                size="small"
+                pagination={false}
+                columns={endpointColumns}
+                dataSource={endpointRows}
+                scroll={{ x: 920 }}
+                locale={{ emptyText: t('metrics.noServerEndpoints') }}
+              />
               {showNoUnhealthyEndpoints && (
                 <Alert
                   style={{ marginTop: 12 }}
@@ -1040,13 +1055,13 @@ export default function MetricsPage() {
               onInstanceChange={(v) => setMetricsSearchParams(setSearchParams, { serviceInstanceId: v, instance: 'all' })}
             />
 
-            {shouldShowJvm && (
+            {jvm ? (
               <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
                 <Col xs={24}>
                   <JvmMetricCard jvm={jvm} />
                 </Col>
               </Row>
-            )}
+            ) : null}
           </>
         )}
       </AsyncBoundary>
