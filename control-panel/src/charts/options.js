@@ -486,7 +486,7 @@ export function buildServiceGraph(nodes, edges, selected, chartTheme = DEFAULT_C
           fontFamily: MONO,
           fontWeight: 600,
           lineHeight: 18,
-          formatter: (p) => p.data.name,
+          formatter: (p) => p.data.displayName,
           rich: {
             name: { color: chartTheme.text, fontSize: 12, fontFamily: MONO, fontWeight: 600 },
           },
@@ -501,9 +501,14 @@ export function buildServiceGraph(nodes, edges, selected, chartTheme = DEFAULT_C
           const selectedNode = selected === n.name;
           const visual = resolveServiceVisual(n);
           const size = 44 + 18 * Math.sqrt(n.calls / maxCalls);
+          const nameParts = n.name.split(' · ');
+          const displayName = n.type === 'app' || nameParts.length < 2
+            ? n.name
+            : nameParts.slice(0, 2).join('\n');
           return {
             id: n.name,
             name: n.name,
+            displayName,
             tech: n.tech,
             visualLabel: visual.label,
             calls: n.calls,

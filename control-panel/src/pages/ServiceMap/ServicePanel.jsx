@@ -75,10 +75,10 @@ export default function ServicePanel({ name, range, autoRefreshRevision, open, o
     { backgroundKey: autoRefreshRevision },
   );
   const visual = data ? resolveServiceVisual(data) : null;
-  const investigationContext = name ? {
+  const investigationContext = data?.name === name && !data.virtual ? {
     from: range.from,
     to: range.to,
-    service: name,
+    service: data.name,
   } : null;
   const tracePath = investigationContext
     ? buildInvestigationPath('traces', investigationContext)
@@ -114,7 +114,7 @@ export default function ServicePanel({ name, range, autoRefreshRevision, open, o
       width={520}
       title={name ? <ServiceBadge name={name} /> : t('metrics.service')}
       extra={
-        name && (
+        data?.name === name && !data.virtual && (
           <Space size={6} wrap className="service-panel-investigation-actions">
             <Button
               size="small"

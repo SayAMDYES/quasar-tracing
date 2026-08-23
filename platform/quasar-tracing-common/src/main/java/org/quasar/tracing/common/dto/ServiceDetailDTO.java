@@ -33,6 +33,9 @@ public class ServiceDetailDTO implements Serializable {
     @Schema(description = "Technology label; may be null")
     private String tech;
 
+    @Schema(description = "Whether this node was derived from Client Span target semantics")
+    private Boolean virtual;
+
     @Schema(description = "Total spans in the window")
     @JsonFormat(shape = JsonFormat.Shape.STRING)
     private Long calls;

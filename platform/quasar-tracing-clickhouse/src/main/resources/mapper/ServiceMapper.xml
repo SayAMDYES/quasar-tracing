@@ -64,10 +64,114 @@
             toUInt64(sum(error_count)) AS errorCount,
             sum(error_count) / sum(call_count) AS errorRate,
             avg(duration_avg) AS avgDurationNs,
-            groupUniqArray(span_name) AS operations
+            groupUniqArray(span_name) AS operations,
+            '' AS calleeType,
+            '' AS calleeTech
         FROM quasar_tracing.service_dependency
         WHERE time_bucket BETWEEN fromUnixTimestamp64Milli(#{from}) AND fromUnixTimestamp64Milli(#{to})
         GROUP BY caller, callee
+        UNION ALL
+        SELECT
+            caller,
+            callee,
+            toUInt64(count()) AS callCount,
+            toUInt64(countIf(statusCode = 'Error')) AS errorCount,
+            countIf(statusCode = 'Error') / count() AS errorRate,
+            avg(durationNs) AS avgDurationNs,
+            groupUniqArray(spanName) AS operations,
+            calleeType,
+            calleeTech
+        FROM (
+            SELECT
+                caller,
+                spanName,
+                statusCode,
+                durationNs,
+                calleeType,
+                calleeTech,
+                concat(
+                    calleeTech,
+                    if(targetNamespace = '', '', concat(' · ', targetNamespace)),
+                    ' · ',
+                    targetAddress,
+                    if(targetPort = '', '', concat(':', targetPort))
+                ) AS callee
+            FROM (
+                SELECT
+                    caller,
+                    spanName,
+                    statusCode,
+                    durationNs,
+                    if(dbSystem != '', 'datastore', 'mq') AS calleeType,
+                    substringUTF8(replaceRegexpAll(multiIf(
+                            dbSystem = 'postgresql', 'PostgreSQL',
+                            dbSystem = 'mysql', 'MySQL',
+                            dbSystem = 'mongodb', 'MongoDB',
+                            dbSystem = 'redis', 'Redis',
+                            dbSystem = 'elasticsearch', 'Elasticsearch',
+                            dbSystem = 'clickhouse', 'ClickHouse',
+                            dbSystem != '', dbSystem,
+                            messagingSystem = 'kafka', 'Kafka',
+                            messagingSystem = 'rabbitmq', 'RabbitMQ',
+                            messagingSystem = 'rocketmq', 'RocketMQ',
+                            messagingSystem
+                        ), '[^0-9A-Za-z._:-]', '_'), 1, 32) AS calleeTech,
+                    substringUTF8(
+                        replaceRegexpAll(targetNamespaceRaw, '[^0-9A-Za-z._:-]', '_'), 1, 96
+                    ) AS targetNamespace,
+                    substringUTF8(
+                        replaceRegexpAll(lowerUTF8(targetAddressRaw), '[^0-9A-Za-z._:-]', '_'), 1, 96
+                    ) AS targetAddress,
+                    substringUTF8(replaceRegexpAll(targetPortRaw, '[^0-9]', ''), 1, 5) AS targetPort
+                FROM (
+                    SELECT
+                        ServiceName AS caller,
+                        SpanName AS spanName,
+                        StatusCode AS statusCode,
+                        Duration AS durationNs,
+                        lowerUTF8(coalesce(
+                            nullIf(SpanAttributes['db.system.name'], ''),
+                            nullIf(SpanAttributes['db.system'], ''),
+                            ''
+                        )) AS dbSystem,
+                        lowerUTF8(SpanAttributes['messaging.system']) AS messagingSystem,
+                        if(
+                            coalesce(
+                                nullIf(SpanAttributes['db.system.name'], ''),
+                                nullIf(SpanAttributes['db.system'], ''),
+                                ''
+                            ) != '',
+                            coalesce(
+                                nullIf(SpanAttributes['db.namespace'], ''),
+                                nullIf(SpanAttributes['db.name'], ''),
+                                ''
+                            ),
+                            coalesce(
+                                nullIf(SpanAttributes['messaging.destination.name'], ''),
+                                nullIf(SpanAttributes['messaging.destination'], ''),
+                                ''
+                            )
+                        ) AS targetNamespaceRaw,
+                        coalesce(
+                            nullIf(SpanAttributes['server.address'], ''),
+                            nullIf(SpanAttributes['net.peer.name'], ''),
+                            nullIf(SpanAttributes['net.peer.ip'], ''),
+                            ''
+                        ) AS targetAddressRaw,
+                        coalesce(
+                            nullIf(SpanAttributes['server.port'], ''),
+                            nullIf(SpanAttributes['net.peer.port'], ''),
+                            ''
+                        ) AS targetPortRaw
+                    FROM quasar_tracing.spans
+                    WHERE Timestamp BETWEEN fromUnixTimestamp64Milli(#{from}) AND fromUnixTimestamp64Milli(#{to})
+                      AND SpanKind = 'Client'
+                )
+                WHERE (dbSystem != '' OR messagingSystem != '')
+                  AND targetAddressRaw != ''
+            )
+        )
+        GROUP BY caller, callee, calleeType, calleeTech
     </select>
 
 </mapper>

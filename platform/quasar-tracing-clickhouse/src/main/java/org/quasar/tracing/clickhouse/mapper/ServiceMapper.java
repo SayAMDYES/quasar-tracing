@@ -6,9 +6,8 @@ import org.quasar.tracing.clickhouse.entity.ServiceEdgeEntity;
 import org.quasar.tracing.clickhouse.entity.ServiceNodeStatEntity;
 
 /**
- * Service-map reads: per-service node stats from {@code span_service_index} and directed
- * dependency edges from the {@code service_dependency} view. SQL lives in
- * {@code resources/mapper/ServiceMapper.xml}.
+ * Service-map reads: per-service node stats from {@code span_service_index}, plus directed
+ * dependencies from cross-service parent relationships and Client Span target semantics.
  *
  * @author Quasar
  * @version 1.0.0
@@ -26,7 +25,7 @@ public interface ServiceMapper {
     /**
      * @param from window start, epoch milliseconds
      * @param to   window end, epoch milliseconds
-     * @return directed dependency edges aggregated over the window
+     * @return service and virtual-infrastructure dependency edges aggregated over the window
      */
     List<ServiceEdgeEntity> selectEdges(@Param("from") Long from, @Param("to") Long to);
 }

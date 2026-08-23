@@ -4,8 +4,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * Per-service stats aggregated from {@code span_service_index} over a window: call volume,
- * error ratio, average and percentile latencies (all nanoseconds).
+ * Query-layer topology node stats: stored service aggregates or a virtual infrastructure target
+ * assembled from Client Span dependency edges.
  *
  * @author Quasar
  * @version 1.0.0
@@ -16,6 +16,10 @@ import lombok.NoArgsConstructor;
 public class ServiceNodeStatEntity {
 
     private String name;
+
+    private String type;
+
+    private Boolean virtual;
 
     private Long calls;
 

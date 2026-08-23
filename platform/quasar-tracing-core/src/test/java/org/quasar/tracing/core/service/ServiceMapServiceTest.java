@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
@@ -20,6 +21,7 @@ import org.quasar.tracing.clickhouse.mapper.MetricMapper;
 import org.quasar.tracing.clickhouse.mapper.ServiceMapper;
 import org.quasar.tracing.common.dto.DependencyGraphDTO;
 import org.quasar.tracing.common.dto.ServiceDetailDTO;
+import org.quasar.tracing.common.dto.ServiceNodeDTO;
 import org.quasar.tracing.common.dto.ServiceStatDTO;
 import org.quasar.tracing.core.classify.ServiceClassifier;
 import org.quasar.tracing.core.config.ServiceTypeProperties;
@@ -71,6 +73,24 @@ class ServiceMapServiceTest {
     }
 
     @Test
+    void dependenciesAddVirtualInfrastructureNodesFromClientEdges() {
+        String database = "PostgreSQL · dumousehome · database.internal:5432";
+        when(serviceMapper.selectNodeStats(any(), any())).thenReturn(List.of(node("web-gateway")));
+        when(serviceMapper.selectEdges(any(), any())).thenReturn(List.of(
+            infrastructureEdge("web-gateway", database, 5L, 0L, 2_000_000.0),
+            infrastructureEdge("worker", database, 3L, 1L, 4_000_000.0)));
+
+        DependencyGraphDTO graph = service.dependencies(0L, 1000L);
+
+        assertThat(graph.getNodes()).extracting("name", "type", "tech", "calls")
+            .contains(tuple(database, "datastore", "PostgreSQL", 8L));
+        ServiceNodeDTO databaseNode = graph.getNodes().stream()
+            .filter(node -> database.equals(node.getName())).findFirst().orElseThrow();
+        assertThat(databaseNode.getErrorRate()).isEqualTo(0.125);
+        assertThat(databaseNode.getAvgDurationNs()).isEqualTo(2_750_000.0);
+    }
+
+    @Test
     void servicesAddUpstreamDownstreamCounts() {
         when(serviceMapper.selectNodeStats(any(), any()))
             .thenReturn(List.of(node("web-gateway"), node("mysql")));
@@ -113,6 +133,23 @@ class ServiceMapServiceTest {
     }
 
     @Test
+    void detailKeepsVirtualInfrastructureFocusedOnDependencyEvidence() {
+        String database = "PostgreSQL · dumousehome · database.internal:5432";
+        when(serviceMapper.selectNodeStats(any(), any())).thenReturn(List.of(node("web-gateway")));
+        when(serviceMapper.selectEdges(any(), any())).thenReturn(List.of(
+            infrastructureEdge("web-gateway", database, 5L, 0L, 2_000_000.0)));
+
+        ServiceDetailDTO detail = service.detail(database, 0L, 1000L);
+
+        assertThat(detail.getVirtual()).isTrue();
+        assertThat(detail.getType()).isEqualTo("datastore");
+        assertThat(detail.getTech()).isEqualTo("PostgreSQL");
+        assertThat(detail.getEndpoints()).isEmpty();
+        assertThat(detail.getUpstreams()).extracting("caller").containsExactly("web-gateway");
+        verifyNoInteractions(metricMapper);
+    }
+
+    @Test
     void detailThrowsNotFoundForUnknownService() {
         when(serviceMapper.selectNodeStats(any(), any())).thenReturn(List.of(node("web-gateway")));
         assertThatThrownBy(() -> service.detail("ghost", 0L, 1000L)).isInstanceOf(NotFoundException.class);
@@ -151,5 +188,18 @@ class ServiceMapServiceTest {
             "HEAD /api/v1/users/me", "OPTIONS /api/v1/users/me", "POST /api",
             "GET /files/{*key}", "GET /orders"));
         return e;
+    }
+
+    private static ServiceEdgeEntity infrastructureEdge(
+            String caller, String callee, Long calls, Long errors, Double avgDurationNs) {
+        ServiceEdgeEntity edge = edge(caller, callee);
+        edge.setCalleeType("datastore");
+        edge.setCalleeTech("PostgreSQL");
+        edge.setCallCount(calls);
+        edge.setErrorCount(errors);
+        edge.setErrorRate(calls == 0 ? 0 : (double) errors / calls);
+        edge.setAvgDurationNs(avgDurationNs);
+        edge.setOperations(List.of("SELECT dumousehome.recurring_expenses"));
+        return edge;
     }
 }

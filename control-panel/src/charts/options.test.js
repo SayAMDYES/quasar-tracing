@@ -65,9 +65,9 @@ test('trace distribution and severity histogram use runtime canvas colors', () =
 test('service graph changes legend, labels, edges and tooltip with the runtime theme', () => {
   const nodes = [
     { name: 'api', calls: 10, errorRate: 0, type: 'app', tech: 'Java' },
-    { name: 'db', calls: 5, errorRate: 0, type: 'datastore', tech: 'MySQL' },
+    { name: 'PostgreSQL · orders · database.internal:5432', calls: 5, errorRate: 0, type: 'datastore', tech: 'PostgreSQL' },
   ];
-  const edges = [{ caller: 'api', callee: 'db', callCount: 5, errorRate: 0 }];
+  const edges = [{ caller: 'api', callee: nodes[1].name, callCount: 5, errorRate: 0 }];
   const lightOption = buildServiceGraph(nodes, edges, null, light);
   const darkOption = buildServiceGraph(nodes, edges, null, dark);
 
@@ -75,6 +75,8 @@ test('service graph changes legend, labels, edges and tooltip with the runtime t
   assert.equal(darkOption.legend.textStyle.color, dark.textSecondary);
   assert.equal(darkOption.series[0].label.color, dark.text);
   assert.equal(darkOption.series[0].label.rich.name.color, dark.text);
+  assert.equal(darkOption.series[0].data[1].displayName, 'PostgreSQL\norders');
+  assert.equal(darkOption.series[0].label.formatter({ data: darkOption.series[0].data[1] }), 'PostgreSQL\norders');
   assert.equal(darkOption.series[0].links[0].lineStyle.color, dark.edge);
   assert.notEqual(lightOption.series[0].label.color, darkOption.series[0].label.color);
 });

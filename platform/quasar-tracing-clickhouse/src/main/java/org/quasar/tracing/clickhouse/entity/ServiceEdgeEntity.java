@@ -5,8 +5,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * A directed caller→callee dependency aggregated from the {@code service_dependency} view
- * over a window: call/error counts, average duration (ns), and the operations seen on the edge.
+ * A directed caller→callee dependency aggregated from service-to-service relationships or
+ * Client Span infrastructure semantics over a window.
  *
  * @author Quasar
  * @version 1.0.0
@@ -19,6 +19,10 @@ public class ServiceEdgeEntity {
     private String caller;
 
     private String callee;
+
+    private String calleeType;
+
+    private String calleeTech;
 
     private Long callCount;
 

@@ -71,7 +71,7 @@ class ServiceControllerTest {
     void returnsServiceDetail() throws Exception {
         EndpointRedDTO endpoint = new EndpointRedDTO("SELECT", 10L, 10.0, 0.2, 1.0, 5.0, 9.0);
         ServiceEdgeDTO upstream = new ServiceEdgeDTO("web-gateway", "mysql", 5L, 0L, 0.0, 2_000_000.0, List.of("SELECT"));
-        ServiceDetailDTO detail = new ServiceDetailDTO("mysql", "datastore", "Go",
+        ServiceDetailDTO detail = new ServiceDetailDTO("mysql", "datastore", "Go", false,
             100L, 0.1, 2_000_000.0, 1_000_000.0, 5_000_000.0, 9_000_000.0,
             List.of(endpoint), List.of(upstream), List.of());
         when(serviceMapService.detail(any(), any(), any())).thenReturn(detail);
@@ -80,6 +80,7 @@ class ServiceControllerTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.name").value("mysql"))
             .andExpect(jsonPath("$.data.tech").value("Go"))
+            .andExpect(jsonPath("$.data.virtual").value(false))
             .andExpect(jsonPath("$.data.endpoints[0].operation").value("SELECT"))
             .andExpect(jsonPath("$.data.upstreams[0].caller").value("web-gateway"));
     }
