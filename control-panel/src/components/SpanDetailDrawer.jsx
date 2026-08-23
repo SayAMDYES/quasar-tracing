@@ -248,7 +248,7 @@ export default function SpanDetailDrawer({
                   <Space size={8} style={{ marginBottom: 6 }}>
                     <SpanStatusTag value="Error" />
                     <b className="mono">{evt.name}</b>
-                    <span className="muted num" style={{ fontSize: 12 }}>
+                    <span className="muted num text-sm">
                       {formatTimestamp(evt.timestamp)}
                     </span>
                   </Space>

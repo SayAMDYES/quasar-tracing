@@ -146,14 +146,8 @@ export default function LogDetailDrawer({ log, open, onClose }) {
           </Space>
 
           <div
-            className="mono"
+            className="mono console-block"
             style={{
-              background: '#0f141a',
-              color: '#E6E8EB',
-              padding: '12px 14px',
-              borderRadius: 8,
-              fontSize: 12.5,
-              lineHeight: 1.6,
               whiteSpace: 'pre-wrap',
               wordBreak: 'break-word',
               marginBottom: 18,

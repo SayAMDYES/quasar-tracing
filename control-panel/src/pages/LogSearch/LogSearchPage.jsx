@@ -352,7 +352,7 @@ export default function LogSearchPage() {
     <>
       <PageHeader title={t('logs.title')} description={t('logs.description')} />
 
-      <Toolbar className="query-toolbar" style={{ marginBottom: 16 }}>
+      <Toolbar className="query-toolbar">
         <div className="query-filter-panel">
           <div className="query-filter-group">
             <div className="query-filter-field is-xwide">
@@ -596,7 +596,7 @@ export default function LogSearchPage() {
                   </Space>
                   <Text type="secondary" className="log-live-hint">{t('logs.realtimeHint')}</Text>
                 </div>
-                <div ref={consoleRef} className="log-live-console">
+                <div ref={consoleRef} className="console-block log-live-console">
                   {liveItems.map((item, index) => (
                     <div
                       key={`${item.timestamp}-${item.service}-${item.traceId}-${item.spanId}-${index}`}

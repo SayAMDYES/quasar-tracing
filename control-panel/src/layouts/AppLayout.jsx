@@ -41,7 +41,7 @@ function Brand({ collapsed }) {
           height: 28,
           borderRadius: 7,
           background: 'var(--brand-primary)',
-          color: '#fff',
+          color: 'var(--text-on-brand)',
           fontWeight: 700,
           display: 'inline-flex',
           alignItems: 'center',

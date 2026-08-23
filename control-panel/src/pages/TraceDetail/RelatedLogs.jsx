@@ -90,7 +90,7 @@ export default function RelatedLogs({ traceId, logs, selectedSpan, investigation
         </Space>
         <Space size={8} wrap>
           {selectedSpanId && (
-            <Text type="secondary" style={{ fontSize: 12 }}>
+            <Text type="secondary" className="text-sm">
               {t('traceDetail.rlCurrentSpan')} <span className="mono">{selectedSpanId.slice(0, 12)}</span>
             </Text>
           )}

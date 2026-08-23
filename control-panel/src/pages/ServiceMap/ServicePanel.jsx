@@ -54,7 +54,7 @@ function DependencyList({ title, edges, peerKey, onSelectService }) {
           >
             <ServiceBadge name={e[peerKey]} />
             <Space size={12}>
-              <span className="num muted" style={{ fontSize: 12 }}>{t('service.calls', { n: formatInt(e.callCount) })}</span>
+              <span className="num muted text-sm">{t('service.calls', { n: formatInt(e.callCount) })}</span>
               <span className="num" style={{ fontSize: 12, color: e.errorRate > 0.05 ? statusColors.error : 'var(--text-muted)' }}>
                 {formatPercent(e.errorRate, 1)}
               </span>
@@ -163,7 +163,7 @@ export default function ServicePanel({ name, range, autoRefreshRevision, open, o
                   {visual.label}
                 </Tag>
               )}
-              <span className="muted" style={{ fontSize: 12 }}>
+              <span className="muted text-sm">
                 {t('service.upDown', { up: data.upstreams.length, down: data.downstreams.length })}
               </span>
             </div>

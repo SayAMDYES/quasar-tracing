@@ -242,7 +242,7 @@ export default function TraceSearchPage() {
               : <Tag>{t('traceArchive.sourceLive')}</Tag>}
           </Space>
           <Space size={6} wrap>
-            <Text type="secondary" style={{ fontSize: 11 }}>{t('traceSearch.colTraceId')}</Text>
+            <Text type="secondary" className="text-xs">{t('traceSearch.colTraceId')}</Text>
             <CopyableId value={trace.traceId} short head={14} />
           </Space>
         </Space>
@@ -293,8 +293,8 @@ export default function TraceSearchPage() {
       sortOrder: tableSort.field === 'startTime' ? tableSort.order : null,
       render: (ts) => (
         <Space direction="vertical" size={0}>
-          <span className="num" style={{ fontSize: 12 }}>{formatTime(ts)}</span>
-          <Text type="secondary" style={{ fontSize: 11 }}>{fromNow(ts)}</Text>
+          <span className="num text-sm">{formatTime(ts)}</span>
+          <Text type="secondary" className="text-xs">{fromNow(ts)}</Text>
         </Space>
       ),
     },
@@ -421,10 +421,7 @@ export default function TraceSearchPage() {
         )}
       />
 
-      <Toolbar
-        style={{ marginBottom: 16 }}
-        className="query-toolbar"
-      >
+      <Toolbar className="query-toolbar">
         <div className="query-filter-panel">
           <div className="query-filter-group">
             <div className="query-filter-field is-wide">

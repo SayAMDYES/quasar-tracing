@@ -23,10 +23,10 @@ export default function AttributeTable({ data, emptyText = '—', onFilterAttrib
       column={1}
       items={entries.map(([key, value]) => ({
         key,
-        label: <Text className="mono" type="secondary" style={{ fontSize: 12, wordBreak: 'break-all' }}>{key}</Text>,
+        label: <Text className="mono text-sm break-all" type="secondary">{key}</Text>,
         children: onFilterAttribute ? (
           <Space size={4} align="start">
-            <Text className="mono" style={{ fontSize: 12, wordBreak: 'break-all' }}>
+            <Text className="mono text-sm break-all">
               {String(value)}
             </Text>
             <Tooltip title={t('common.filterByAttribute')}>
@@ -43,7 +43,7 @@ export default function AttributeTable({ data, emptyText = '—', onFilterAttrib
             </Tooltip>
           </Space>
         ) : (
-          <Text className="mono" style={{ fontSize: 12, wordBreak: 'break-all' }}>
+          <Text className="mono text-sm break-all">
             {String(value)}
           </Text>
         ),

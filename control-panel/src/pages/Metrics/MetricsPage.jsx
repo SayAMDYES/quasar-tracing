@@ -123,13 +123,6 @@ function MetricStyles() {
           min-width: 236px;
         }
 
-        .metrics-filter-label {
-          display: block;
-          margin-bottom: 6px;
-          color: ${neutral.textSecondary};
-          font-size: 12px;
-          line-height: 1;
-        }
 
         .metrics-dashboard-kpi {
           overflow: hidden;
@@ -520,8 +513,8 @@ function InstancePanel({ instances, selectedInstanceId, onInstanceChange }) {
           column={{ xs: 1, sm: 2, xl: 3 }}
           items={resourceAttrs.map(([label, value]) => ({
             key: label,
-            label: <Text className="mono" type="secondary" style={{ fontSize: 11, wordBreak: 'break-all' }}>{label}</Text>,
-            children: <Text className="mono" style={{ fontSize: 12, wordBreak: 'break-all' }}>{value}</Text>,
+            label: <Text className="mono text-xs break-all" type="secondary">{label}</Text>,
+            children: <Text className="mono text-sm break-all">{value}</Text>,
           }))}
         />
       </div>
@@ -822,7 +815,7 @@ export default function MetricsPage() {
           <div className="metrics-operation-bar">
             <div className="metrics-filter-group">
               <div className="metrics-filter-field">
-                <Text className="metrics-filter-label">{t('metrics.service')}</Text>
+                <Text className="query-filter-label">{t('metrics.service')}</Text>
                 <Select
                   showSearch
                   style={{ width: '100%' }}
@@ -834,7 +827,7 @@ export default function MetricsPage() {
                 />
               </div>
               <div className="metrics-filter-field">
-                <Text className="metrics-filter-label">{t('metrics.environment')}</Text>
+                <Text className="query-filter-label">{t('metrics.environment')}</Text>
                 <Select
                   allowClear
                   showSearch
@@ -849,7 +842,7 @@ export default function MetricsPage() {
                 />
               </div>
               <div className="metrics-filter-field">
-                <Text className="metrics-filter-label">{t('metrics.namespace')}</Text>
+                <Text className="query-filter-label">{t('metrics.namespace')}</Text>
                 <Select
                   allowClear
                   showSearch
@@ -864,7 +857,7 @@ export default function MetricsPage() {
                 />
               </div>
               <div className="metrics-filter-field" style={{ minWidth: 280 }}>
-                <Text className="metrics-filter-label">{t('metrics.instance')}</Text>
+                <Text className="query-filter-label">{t('metrics.instance')}</Text>
                 <Select
                   showSearch
                   style={{ width: '100%' }}

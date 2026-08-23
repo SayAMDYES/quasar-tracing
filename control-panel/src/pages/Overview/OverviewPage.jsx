@@ -257,7 +257,7 @@ export default function OverviewPage() {
                 <Card
                   title={t('overview.cardServiceHealth')}
                   size="small"
-                  extra={<Text type="secondary" style={{ fontSize: 12 }}>{t('overview.openMapHint')}</Text>}
+                  extra={<Text type="secondary" className="text-sm">{t('overview.openMapHint')}</Text>}
                 >
                   <Table
                     rowKey="name"

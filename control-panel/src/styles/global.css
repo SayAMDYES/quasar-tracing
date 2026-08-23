@@ -27,6 +27,7 @@ html[data-theme='light'] {
   --text-secondary: #5b6573;
   --text-muted: #8a92a0;
   --text-disabled: #b6bcc6;
+  --text-on-brand: #ffffff;
 
   /* status */
   --ok: #1f9d55;
@@ -88,6 +89,7 @@ html[data-theme='dark'] {
   --text-secondary: #b5bdc9;
   --text-muted: #929cab;
   --text-disabled: #687280;
+  --text-on-brand: #ffffff;
 
   --ok: #57d187;
   --error: #ff7479;
@@ -187,6 +189,17 @@ body {
   white-space: nowrap;
 }
 
+/* Off-scale font sizes used across tables, cards and meta rows */
+.text-xs {
+  font-size: 11px;
+}
+.text-sm {
+  font-size: 12px;
+}
+.break-all {
+  word-break: break-all;
+}
+
 .data-table .ant-table-cell {
   vertical-align: middle;
 }
@@ -227,9 +240,9 @@ body {
   font-size: 12px;
 }
 
-.log-live-console {
-  height: 320px;
-  overflow: auto;
+/* Dark console surface for log output — intentionally theme-invariant.
+ * Shared by the live log stream and the log detail drawer. */
+.console-block {
   background: #101418;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius);
@@ -238,6 +251,11 @@ body {
   font-family: var(--font-mono);
   font-size: 12px;
   line-height: 1.65;
+}
+
+.log-live-console {
+  height: 320px;
+  overflow: auto;
 }
 
 .log-live-row {
@@ -416,13 +434,42 @@ body {
 /* ============================================================
  * Shared query filters
  * ========================================================== */
+/* Toolbar base styles live here (not inline in Toolbar.jsx) so page-level
+ * classes can override them without !important. */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.toolbar-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.toolbar-extra {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .query-toolbar {
-  border-color: var(--border) !important;
-  background: var(--surface-muted) !important;
+  background: var(--surface-muted);
 }
 
 .query-toolbar > div {
-  gap: 14px !important;
+  gap: 14px;
 }
 
 .query-filter-panel {
@@ -747,11 +794,7 @@ body {
   }
 }
 
-@media (max-width: 900px) {
-  .app-content {
-    padding: 20px 14px 18px;
-  }
-
+@media (max-width: 1060px) {
   .topbar {
     overflow-x: auto;
     overflow-y: hidden;
@@ -769,6 +812,12 @@ body {
   .topbar-actions {
     margin-left: 0;
     flex: 0 0 auto;
+  }
+}
+
+@media (max-width: 900px) {
+  .app-content {
+    padding: 20px 14px 18px;
   }
 
   .data-table,
@@ -809,26 +858,6 @@ body {
   }
 }
 
-@media (min-width: 901px) and (max-width: 1060px) {
-  .topbar {
-    overflow-x: auto;
-    overflow-y: hidden;
-    padding-bottom: 2px;
-  }
-
-  .topbar-search {
-    display: none;
-  }
-
-  .topbar-mobile-search-button {
-    display: inline-flex;
-  }
-
-  .topbar-actions {
-    margin-left: 0;
-    flex: 0 0 auto;
-  }
-}
 
 @keyframes auto-refresh-start {
   0% {
@@ -1483,7 +1512,6 @@ body {
   display: flex;
   width: max-content;
   min-width: 100%;
-  box-sizing: border-box;
   align-items: center;
   white-space: pre;
 }
@@ -1508,7 +1536,6 @@ body {
   min-width: 56px;
   height: 20px;
   padding-right: 10px;
-  box-sizing: border-box;
   border-right: 1px solid var(--border);
   background: var(--surface-muted);
   color: var(--text-muted);

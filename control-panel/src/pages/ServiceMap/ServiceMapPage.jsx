@@ -74,7 +74,7 @@ export default function ServiceMapPage() {
       <PageHeader
         title={t('serviceMap.title')}
         description={t('serviceMap.description')}
-        extra={<Text type="secondary" style={{ fontSize: 12 }}>{t('serviceMap.hint')}</Text>}
+        extra={<Text type="secondary" className="text-sm">{t('serviceMap.hint')}</Text>}
       />
 
       <Card size="small" styles={{ body: { padding: 8 } }}>
@@ -92,7 +92,7 @@ export default function ServiceMapPage() {
       </Card>
 
       <Space style={{ marginTop: 12 }} wrap>
-        <Text type="secondary" style={{ fontSize: 12 }}>
+        <Text type="secondary" className="text-sm">
           {data ? t('serviceMap.count', { services: data.nodes.length, edges: data.edges.length }) : ''}
         </Text>
       </Space>

@@ -279,7 +279,7 @@ export default function TraceDetailPage() {
                   </Space>
                 </Space>
               }
-              extra={<Text type="secondary" style={{ fontSize: 12 }}>{t('traceDetail.clickSpanHint')}</Text>}
+              extra={<Text type="secondary" className="text-sm">{t('traceDetail.clickSpanHint')}</Text>}
             >
               <Tabs
                 activeKey={activeTab}

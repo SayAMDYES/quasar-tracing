@@ -47,6 +47,7 @@ export const lightTokens = createSemanticTokens(
   {
     primary: '#F26A1B', primaryHover: '#FF8A47', primaryActive: '#D2540E',
     strong: '#C2540F', tint: '#FFF4EC', tintStrong: '#FFE3CC', glow: 'rgba(242, 106, 27, 0.16)',
+    onBrand: '#FFFFFF',
   },
   {
     canvas: '#F6F7F9', surface: '#FFFFFF', surfaceMuted: '#FAFAFB', border: '#ECEEF1',
@@ -67,7 +68,7 @@ export const darkTokens = createSemanticTokens(
   {
     primary: '#FF8A47', primaryHover: '#FFA66F', primaryActive: '#F26A1B',
     strong: '#FFAD7A', tint: 'rgba(242, 106, 27, 0.14)', tintStrong: 'rgba(242, 106, 27, 0.24)',
-    glow: 'rgba(255, 138, 71, 0.28)',
+    glow: 'rgba(255, 138, 71, 0.28)', onBrand: '#FFFFFF',
   },
   {
     canvas: '#111318', surface: '#191C22', surfaceMuted: '#20242B', border: '#303640',
@@ -125,6 +126,7 @@ export const brand = Object.freeze({
   primary: 'var(--brand-primary)', primaryHover: 'var(--brand-hover)',
   primaryActive: 'var(--brand-active)', strong: 'var(--brand-strong)',
   tint: 'var(--brand-tint)', tintStrong: 'var(--brand-tint-strong)', glow: 'var(--brand-glow)',
+  onBrand: 'var(--text-on-brand)',
 });
 export const neutral = Object.freeze({
   canvas: 'var(--canvas)', surface: 'var(--surface)', surfaceMuted: 'var(--surface-muted)',
