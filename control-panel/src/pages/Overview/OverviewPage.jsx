@@ -21,6 +21,7 @@ import useFetch from '@/hooks/useFetch';
 import { fetchOverview } from '@/api';
 import { buildThroughputChart, buildErrorRateChart, buildEndpointBar, pickTimeStep } from '@/charts/options';
 import { formatNumber, formatPercent, formatInt, formatTime, formatMs } from '@/utils/format';
+import { buildInvestigationPath } from '@/utils/investigationContext';
 import { brand, status } from '@/theme/tokens';
 
 const { Text } = Typography;
@@ -62,6 +63,15 @@ export default function OverviewPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, range, i18n.language, chartTheme]);
+
+  const openServiceTopology = (service) => {
+    const path = buildInvestigationPath('services', {
+      from: range.from,
+      to: range.to,
+      service,
+    });
+    if (path) navigate(path);
+  };
 
   const healthColumns = [
     { title: t('overview.colService'), dataIndex: 'name', width: 240, render: (name) => <ServiceBadge name={name} /> },
@@ -232,11 +242,11 @@ export default function OverviewPage() {
                     dataSource={data.services}
                     scroll={{ x: 704 }}
                     onRow={(r) => ({
-                      onClick: () => navigate(`/services?focus=${r.name}`),
+                      onClick: () => openServiceTopology(r.name),
                       onKeyDown: (e) => {
                         if (e.key === 'Enter' || e.key === ' ') {
                           e.preventDefault();
-                          navigate(`/services?focus=${r.name}`);
+                          openServiceTopology(r.name);
                         }
                       },
                       role: 'button',

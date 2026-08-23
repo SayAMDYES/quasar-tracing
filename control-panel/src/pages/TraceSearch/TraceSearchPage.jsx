@@ -50,6 +50,9 @@ const TRACE_SORT_FIELDS = {
 const DEFAULT_FILTERS = {
   service: undefined,
   operation: undefined,
+  spanService: undefined,
+  spanOperation: undefined,
+  spanStatus: undefined,
   environment: undefined,
   namespace: undefined,
   k8sPodName: undefined,
@@ -348,6 +351,23 @@ export default function TraceSearchPage() {
     applied.maxDurationMs,
   ].filter((v) => v !== undefined && v !== null && v !== '').length
     + applied.attributeConditions.length;
+  const appliedAdvancedFilters = [
+    applied.operation,
+    applied.spanService,
+    applied.spanOperation,
+    applied.spanStatus,
+    applied.namespace,
+    applied.k8sPodName,
+    applied.k8sNodeName,
+    applied.serviceInstanceId,
+    applied.minDurationMs,
+    applied.maxDurationMs,
+    ...applied.attributeConditions.map(attributeConditionKey),
+  ];
+  const hasAppliedAdvancedFilters = appliedAdvancedFilters.some(
+    (value) => value !== undefined && value !== null && value !== '',
+  );
+  const appliedAdvancedKey = JSON.stringify(appliedAdvancedFilters);
   const normalizedDraft = normalizeAttributeConditions(form.attributeConditions);
   const hasDraftChanges = normalizedDraft.errors.length > 0
     || JSON.stringify(toTraceSearchRequest({
@@ -362,6 +382,9 @@ export default function TraceSearchPage() {
     compareSelection.clear();
     setCompareMode(false);
   };
+  const traceDetailPath = (traceId) => (
+    `/traces/${traceId}${searchSource === 'archive' ? '?source=archive' : ''}`
+  );
 
   return (
     <>
@@ -415,11 +438,11 @@ export default function TraceSearchPage() {
               />
             </div>
             <div className="query-filter-field">
-              <Text className="query-filter-label">{t('traceSearch.service')}</Text>
+              <Text className="query-filter-label">{t('traceSearch.rootService')}</Text>
               <Select
                 allowClear
                 showSearch
-                placeholder={t('traceSearch.service')}
+                placeholder={t('traceSearch.rootService')}
                 options={serviceOptions}
                 value={form.service}
                 onChange={(v) => setForm((f) => ({ ...f, service: v }))}
@@ -437,7 +460,7 @@ export default function TraceSearchPage() {
               />
             </div>
             <div className="query-filter-field">
-              <Text className="query-filter-label">{t('traceSearch.colStatus')}</Text>
+              <Text className="query-filter-label">{t('traceSearch.traceStatus')}</Text>
               <Select
                 value={form.status}
                 options={[
@@ -462,9 +485,11 @@ export default function TraceSearchPage() {
             </div>
           </div>
           <Collapse
+            key={appliedAdvancedKey}
             ghost
             size="small"
             className="query-advanced"
+            defaultActiveKey={hasAppliedAdvancedFilters ? ['advanced'] : []}
             items={[
               {
                 key: 'advanced',
@@ -472,11 +497,46 @@ export default function TraceSearchPage() {
                 children: (
                   <div className="query-filter-group query-filter-group-advanced">
                     <div className="query-filter-field is-wide">
-                      <Text className="query-filter-label">{t('traceSearch.operation')}</Text>
+                      <Text className="query-filter-label">{t('traceSearch.spanService')}</Text>
                       <Select
                         allowClear
                         showSearch
-                        placeholder={t('traceSearch.operation')}
+                        placeholder={t('traceSearch.spanService')}
+                        options={serviceOptions}
+                        value={form.spanService}
+                        onChange={(v) => setForm((f) => ({ ...f, spanService: v }))}
+                      />
+                    </div>
+                    <div className="query-filter-field is-wide">
+                      <Text className="query-filter-label">{t('traceSearch.spanOperation')}</Text>
+                      <Select
+                        allowClear
+                        showSearch
+                        placeholder={t('traceSearch.spanOperation')}
+                        options={opOptions}
+                        value={form.spanOperation}
+                        onChange={(v) => setForm((f) => ({ ...f, spanOperation: v }))}
+                      />
+                    </div>
+                    <div className="query-filter-field">
+                      <Text className="query-filter-label">{t('traceSearch.spanStatus')}</Text>
+                      <Select
+                        allowClear
+                        placeholder={t('traceSearch.spanStatus')}
+                        options={[
+                          { label: t('traceSearch.statusErrors'), value: 'error' },
+                          { label: t('traceSearch.statusOk'), value: 'ok' },
+                        ]}
+                        value={form.spanStatus}
+                        onChange={(v) => setForm((f) => ({ ...f, spanStatus: v }))}
+                      />
+                    </div>
+                    <div className="query-filter-field is-wide">
+                      <Text className="query-filter-label">{t('traceSearch.rootOperation')}</Text>
+                      <Select
+                        allowClear
+                        showSearch
+                        placeholder={t('traceSearch.rootOperation')}
                         options={opOptions}
                         value={form.operation}
                         onChange={(v) => setForm((f) => ({ ...f, operation: v }))}
@@ -624,7 +684,7 @@ export default function TraceSearchPage() {
                 height={220}
                 onEvents={{
                   click: (params) => {
-                    if (params.data?.traceId) navigate(`/traces/${params.data.traceId}${searchSource === 'archive' ? '?source=archive' : ''}`);
+                    if (params.data?.traceId) navigate(traceDetailPath(params.data.traceId));
                   },
                 }}
               />
@@ -674,13 +734,13 @@ export default function TraceSearchPage() {
         }}
         onRow={(r) => ({
           onClick: (event) => {
-            if (!isRowActionTarget(event)) navigate(`/traces/${r.traceId}${searchSource === 'archive' ? '?source=archive' : ''}`);
+            if (!isRowActionTarget(event)) navigate(traceDetailPath(r.traceId));
           },
           onKeyDown: (e) => {
             if (isNestedInteractiveTarget(e)) return;
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault();
-              navigate(`/traces/${r.traceId}`);
+              navigate(traceDetailPath(r.traceId));
             }
           },
           role: 'button',

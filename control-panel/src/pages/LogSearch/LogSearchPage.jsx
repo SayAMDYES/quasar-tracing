@@ -24,6 +24,8 @@ import useInvestigationRange from '@/hooks/useInvestigationRange';
 import { buildLogStreamUrl, searchLogs, fetchFilters } from '@/api';
 import { buildSeverityHistogram, pickTimeStep } from '@/charts/options';
 import { formatTime, formatInt } from '@/utils/format';
+import { parseInvestigationRange } from '@/utils/investigationContext';
+import { decodeLogSearchParams, encodeLogSearchParams } from '@/utils/logSearchParams';
 
 const { Text } = Typography;
 
@@ -65,26 +67,25 @@ export default function LogSearchPage() {
   const { autoRefreshRevision } = useApp();
   const { t, i18n } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
+  const searchParamsString = searchParams.toString();
   const effectiveRange = useInvestigationRange(searchParams);
-  const urlFilters = useMemo(
-    () => ({
-      traceId: searchParams.get('traceId') || undefined,
-      spanId: searchParams.get('spanId') || undefined,
-      service: searchParams.get('service') || undefined,
-      environment: searchParams.get('environment') || undefined,
-      namespace: searchParams.get('namespace') || undefined,
-      k8sPodName: searchParams.get('k8sPodName') || undefined,
-      k8sNodeName: searchParams.get('k8sNodeName') || undefined,
-      serviceInstanceId: searchParams.get('serviceInstanceId') || undefined,
-      q: searchParams.get('q') || '',
-    }),
-    [searchParams],
+  const investigationRange = useMemo(
+    () => parseInvestigationRange(new URLSearchParams(searchParamsString)),
+    [searchParamsString],
   );
-  const traceId = urlFilters.traceId;
-  const spanId = urlFilters.spanId;
+  const rangeToPersist = investigationRange ? effectiveRange : null;
+  const urlState = useMemo(
+    () => decodeLogSearchParams(new URLSearchParams(searchParamsString)),
+    [searchParamsString],
+  );
+  const traceId = urlState.traceId;
+  const spanId = urlState.spanId;
+  const applied = useMemo(
+    () => compactFilters({ ...DEFAULT_FILTERS, ...urlState.filters }),
+    [urlState],
+  );
 
-  const [form, setForm] = useState({ ...DEFAULT_FILTERS, ...urlFilters });
-  const [applied, setApplied] = useState(form);
+  const [form, setForm] = useState(applied);
   const [selected, setSelected] = useState(null);
   const [liveEnabled, setLiveEnabled] = useState(false);
   const [livePaused, setLivePaused] = useState(false);
@@ -99,19 +100,8 @@ export default function LogSearchPage() {
   const liveFilterKeyRef = useRef(null);
 
   useEffect(() => {
-    const next = {
-      ...DEFAULT_FILTERS,
-      service: urlFilters.service,
-      environment: urlFilters.environment,
-      namespace: urlFilters.namespace,
-      k8sPodName: urlFilters.k8sPodName,
-      k8sNodeName: urlFilters.k8sNodeName,
-      serviceInstanceId: urlFilters.serviceInstanceId,
-      q: urlFilters.q,
-    };
-    setForm((f) => ({ ...f, ...next }));
-    setApplied((f) => ({ ...f, ...next }));
-  }, [urlFilters]);
+    setForm(applied);
+  }, [applied]);
 
   const { data: filters } = useFetch(fetchFilters, []);
   const { data, loading, error, refetch } = useFetch(
@@ -128,10 +118,18 @@ export default function LogSearchPage() {
     { backgroundKey: autoRefreshRevision },
   );
 
-  const apply = () => setApplied(compactFilters(form));
+  const apply = () => {
+    const next = compactFilters(form);
+    setForm(next);
+    setSearchParams(encodeLogSearchParams(next, {
+      range: rangeToPersist,
+      traceId,
+      spanId,
+    }));
+  };
   const resetFilters = () => {
     setForm(DEFAULT_FILTERS);
-    setApplied(DEFAULT_FILTERS);
+    setSearchParams(encodeLogSearchParams(DEFAULT_FILTERS, { range: rangeToPersist }));
   };
 
   const startRealtime = async () => {
@@ -321,6 +319,8 @@ export default function LogSearchPage() {
   const nodeOptions = filters?.k8sNodeNames?.map((v) => ({ label: v, value: v })) || [];
   const instanceOptions = filters?.serviceInstances?.map((v) => ({ label: v, value: v })) || [];
   const activeFilterCount = [
+    traceId,
+    spanId,
     applied.q,
     applied.service,
     applied.severities?.length ? applied.severities.join(',') : undefined,
@@ -330,6 +330,14 @@ export default function LogSearchPage() {
     applied.k8sNodeName,
     applied.serviceInstanceId,
   ].filter((v) => v !== undefined && v !== null && v !== '').length;
+  const appliedAdvancedFilters = [
+    applied.namespace,
+    applied.k8sPodName,
+    applied.k8sNodeName,
+    applied.serviceInstanceId,
+  ];
+  const hasAppliedAdvancedFilters = appliedAdvancedFilters.some(Boolean);
+  const appliedAdvancedKey = JSON.stringify(appliedAdvancedFilters);
   const hasDraftChanges = JSON.stringify(compactFilters(form)) !== JSON.stringify(compactFilters(applied));
   const liveStatusLabel = livePaused
     ? 'livePaused'
@@ -399,9 +407,11 @@ export default function LogSearchPage() {
             </div>
           </div>
           <Collapse
+            key={appliedAdvancedKey}
             ghost
             size="small"
             className="query-advanced"
+            defaultActiveKey={hasAppliedAdvancedFilters ? ['advanced'] : []}
             items={[
               {
                 key: 'advanced',

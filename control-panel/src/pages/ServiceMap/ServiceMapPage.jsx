@@ -5,7 +5,7 @@
  *
  * @author Quasar
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Card, Space, Typography } from 'antd';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -42,6 +42,16 @@ export default function ServiceMapPage() {
     setSelected(urlFocus);
   }, [urlFocus]);
 
+  const selectService = useCallback((name) => {
+    setSelected(name);
+    setSearchParams((previous) => {
+      const next = new URLSearchParams(previous);
+      if (name) next.set('focus', name);
+      else next.delete('focus');
+      return next;
+    });
+  }, [setSearchParams]);
+
   const option = useMemo(
     () => (data ? buildServiceGraph(data.nodes, data.edges, selected, chartTheme) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -51,20 +61,13 @@ export default function ServiceMapPage() {
   const onEvents = useMemo(
     () => ({
       click: (params) => {
-        if (params.dataType === 'node') setSelected(params.data.name);
+        if (params.dataType === 'node') selectService(params.data.name);
       },
     }),
-    [],
+    [selectService],
   );
 
-  const closePanel = () => {
-    setSelected(null);
-    if (searchParams.get('focus')) {
-      const next = new URLSearchParams(searchParams);
-      next.delete('focus');
-      setSearchParams(next);
-    }
-  };
+  const closePanel = () => selectService(null);
 
   return (
     <>
@@ -100,7 +103,7 @@ export default function ServiceMapPage() {
         autoRefreshRevision={autoRefreshRevision}
         open={!!selected}
         onClose={closePanel}
-        onSelectService={setSelected}
+        onSelectService={selectService}
       />
     </>
   );
