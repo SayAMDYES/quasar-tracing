@@ -238,7 +238,8 @@ export default {
   traceCompare: {
     title: 'Trace 对比',
     description: '基于两份归一化 Trace Document 的结构化对比',
-    compareSelected: '对比（{{count}}/2）',
+    compare: '对比',
+    compareSelected: '开始对比（{{count}}/2）',
     setBaseline: '设为基线',
     baselineSet: '已设置基线',
     compareAnother: '与另一条对比',

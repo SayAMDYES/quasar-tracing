@@ -238,7 +238,8 @@ export default {
   traceCompare: {
     title: 'Trace Compare',
     description: 'Structural comparison of two normalized Trace Documents',
-    compareSelected: 'Compare ({{count}}/2)',
+    compare: 'Compare',
+    compareSelected: 'Compare selected ({{count}}/2)',
     setBaseline: 'Set as baseline',
     baselineSet: 'Baseline selected',
     compareAnother: 'Compare with another',

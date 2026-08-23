@@ -6,7 +6,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Button, Card, Col, Collapse, Input, InputNumber, Row, Select, Space, Table, Tag, Typography } from 'antd';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { DiffOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/PageHeader';
@@ -114,6 +114,7 @@ export default function TraceSearchPage() {
   const { chartTheme } = useThemeMode();
   const { autoRefreshRevision } = useApp();
   const compareSelection = useTraceCompareSelection();
+  const location = useLocation();
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -129,7 +130,8 @@ export default function TraceSearchPage() {
     [searchParamsString],
   );
   const [form, setForm] = useState(() => ({ ...DEFAULT_FILTERS, ...applied }));
-  const [tableSort, setTableSort] = useState({ field: 'durationNs', order: 'descend' });
+  const [tableSort, setTableSort] = useState({ field: 'startTime', order: 'descend' });
+  const [compareMode, setCompareMode] = useState(() => location.state?.compareMode === true);
   const searchSource = searchParams.get('source') === 'archive' ? 'archive' : 'live';
   const selectedServerTraceIds = compareSelection.selectedRefs
     .map(parseTraceSourceRef)
@@ -352,6 +354,14 @@ export default function TraceSearchPage() {
       ...form,
       attributeConditions: normalizedDraft.conditions,
     })) !== JSON.stringify(toTraceSearchRequest(applied));
+  const enterCompareMode = () => {
+    compareSelection.clear();
+    setCompareMode(true);
+  };
+  const cancelCompare = () => {
+    compareSelection.clear();
+    setCompareMode(false);
+  };
 
   return (
     <>
@@ -365,13 +375,24 @@ export default function TraceSearchPage() {
               value={searchSource}
               onChange={changeSource}
             />
+            {compareMode && (
+              <Button onClick={cancelCompare}>{t('common.cancel')}</Button>
+            )}
             <Button
-              type="primary"
+              type={compareMode ? 'primary' : 'default'}
               icon={<DiffOutlined />}
-              disabled={!comparePath}
-              onClick={() => comparePath && navigate(comparePath)}
+              disabled={compareMode && !comparePath}
+              onClick={() => {
+                if (!compareMode) {
+                  enterCompareMode();
+                } else if (comparePath) {
+                  navigate(comparePath);
+                }
+              }}
             >
-              {t('traceCompare.compareSelected', { count: compareSelection.selectedRefs.length })}
+              {compareMode
+                ? t('traceCompare.compareSelected', { count: compareSelection.selectedRefs.length })
+                : t('traceCompare.compare')}
             </Button>
           </Space>
         )}
@@ -628,7 +649,7 @@ export default function TraceSearchPage() {
         loading={loading}
         columns={columns}
         dataSource={data?.items || []}
-        rowSelection={{
+        rowSelection={compareMode ? {
           preserveSelectedRowKeys: true,
           selectedRowKeys: selectedServerTraceIds,
           onChange: (keys) => {
@@ -642,7 +663,7 @@ export default function TraceSearchPage() {
               && !compareSelection.selectedRefs.includes(searchSource === 'archive'
                 ? `archive:${record.traceId}` : liveTraceRef(record.traceId)),
           }),
-        }}
+        } : undefined}
         pagination={{ pageSize: 20, showSizeChanger: false, size: 'small' }}
         scroll={{ x: 1852 }}
         onChange={(_, __, sorter) => {

@@ -234,7 +234,7 @@ export default function TraceDetailPage() {
               icon={<DiffOutlined />}
               onClick={() => {
                 compareSelection.setBaseline(sourceRef);
-                navigate('/traces');
+                navigate('/traces', { state: { compareMode: true } });
               }}
             >
               {t('traceCompare.compareAnother')}
